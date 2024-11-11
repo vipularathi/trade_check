@@ -7,7 +7,7 @@ import warnings
 warnings.filterwarnings("ignore", category=pd.errors.SettingWithCopyWarning)
 pd.set_option('display.max_columns', None)
 
-today = datetime.now().date().strftime('%Y%m%d')
+today = datetime.now().date()
 # today = pd.to_datetime('20241107')
 drop_pattern = rf'dropcopy_positions_{today.strftime("%Y%m%d")}_\d{{6}}\.xlsx' # sample = dropcopy_positions_20241107_165710
 our_pattern = rf'Output_{today.strftime("%d-%b-%y")} \d{{2}}-\d{{2}}-\d{{2}}\.xlsx' # sample = Output_07-Nov-24 15-34-07.xlsx
@@ -48,7 +48,7 @@ df_drop['Expiry'] = df_drop['Expiry'].apply(convert_to_timestamp)
 grouped_df = df_output.groupby(['Symbol', 'Expiry', 'Option_Type'])['Strike'].unique().reset_index()
 flag = True
 for index, row in grouped_df.iterrows():
-    print(index)
+    # print(index)
     # print(type(row))
     symbol = row['Symbol']
     expiry = row['Expiry']
