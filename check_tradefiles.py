@@ -5,7 +5,7 @@ from datetime import datetime
 import warnings
 
 warnings.filterwarnings("ignore", category=pd.errors.SettingWithCopyWarning)
-# warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*truth value of an empty array is ambiguous.*")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*truth value of an empty array is ambiguous.*")
 pd.set_option('display.max_columns', None)
 
 today = datetime.now().date()
@@ -33,6 +33,8 @@ i=0
 print('\n')
 for each_server in server_list:
     flag = True
+    mismatch = 0
+    missing_trade = 0
     print(f'Server: {each_server.upper()}')
     our_pattern = rf'net_positions_({each_server.lower()}|{each_server.upper()})_{today.strftime("%Y%m%d")}\.csv'  # sample = net_positions_BACKUP_20241202.csv
     drop_pattern = rf'dropcopy_({each_server.lower()}|{each_server.upper()}|{each_server.capitalize()})_positions_{today.strftime("%Y%m%d")}_\d{{6}}\.xlsx'  # sample = dropcopy_positions_20241107_165710
@@ -56,80 +58,134 @@ for each_server in server_list:
         df_output = pd.concat([df_output, temp_df])
     # df_output = pd.read_excel(r'D:\trade_file_analysis\Output_06-Nov-24 15-43-26.xlsx', index_col=False)
     # df_output = df_output[~df_output['Source1'].str.startswith('Nest')]
-    df_output.rename(
-        columns={'InstType': 'Option_Type', 'StrikePrice': 'Strike'},
-        inplace=True)
+    # df_output.rename(
+    #     columns={'InstType': 'Option_Type', 'StrikePrice': 'Strike'},
+    #     inplace=True)
     # ---------------------------------------------------------------------------------------------------
     df_drop = df_drop.iloc[:, 1:]
     df_drop['Expiry'] = df_drop['Expiry'].apply(convert_to_timestamp)
     df_output['Expiry'] = df_output['Expiry'].apply(convert_to_timestamp)
+    # ---------------------------------------------------------------------------------------------------
+    filtered_df = pd.DataFrame()
+    drop_strikes = df_drop.StrikePrice.unique()
+    op_strikes = df_output.StrikePrice.unique()
+    if len(op_strikes) <= len(drop_strikes):
+        filtered_df = df_drop.copy()
+        use = 'net_pos'
+        # print('missing trade in net position file')
+    else:
+        filtered_df = df_output.copy()
+        use = 'drop'
+        # print('No missing trades')
 
-    # filtered_df = df_output.query("Source1.str.contains(@each_server, case = False, na = False)")
-    filtered_df = df_output.copy()
-    grouped_df = filtered_df.groupby(['Symbol', 'Expiry', 'Option_Type'])['Strike'].unique().reset_index()
-
+    # # filtered_df = df_output.query("Source1.str.contains(@each_server, case = False, na = False)")
+    # filtered_df = df_drop.copy()
+    grouped_df = filtered_df.groupby(['Symbol', 'Expiry', 'InstType'])['StrikePrice'].unique().reset_index()
+    # ---------------------------------------------------------------------------------------------------
     for index, row in grouped_df.iterrows():
         # print(index)
         # print(type(row))
         symbol = row['Symbol']
         expiry = row['Expiry']
-        opttype = row['Option_Type']
-        for each_strike in row['Strike']:
+        opttype = row['InstType']
+        for each_strike in row['StrikePrice']:
             # print(symbol, expiry, opttype, each_strike)
-            temp_op_df = filtered_df.query("Symbol == @symbol and Expiry == @expiry and Option_Type == @opttype and Strike == @each_strike")
-            temp_drop_df = df_drop.query("Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
-            # print(temp_op_df)
+            # ---------------------------------------------------------------------------------------------------
+            if use == 'drop':
+                temp_drop_df = df_drop.query(
+                    "Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
+                temp_op_df = filtered_df.query(
+                    "Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
+                compare_strikes = df_drop.StrikePrice.unique()
+            else:
+                temp_op_df = df_output.query(
+                    "Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
+                temp_drop_df = filtered_df.query(
+                    "Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
+                compare_strikes = df_output.StrikePrice.unique()
+            # ---------------------------------------------------------------------------------------------------
+            # # if each_strike in df_output.StrikePrice.unique():
+            # temp_op_df = df_output.query("Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
+            # temp_drop_df = filtered_df.query("Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
+            # # print(temp_op_df)
 
-            op_buy_qty = sum(temp_op_df['BuyQty'])
-            drop_buy_qty = sum(temp_drop_df['BuyQty'])
-            op_buy_price = temp_op_df['BuyPrice'].values[0]
-            drop_buy_price = temp_drop_df['BuyPrice'].tolist()
-            if len(temp_op_df['BuyQty']) > 1 or len(temp_op_df['BuyPrice']) > 1:
-                print('a')
-            temp_op_df.loc[:, 'buy_value'] = temp_op_df['BuyQty'] * temp_op_df['BuyPrice']
-            op_buy_value = temp_op_df['buy_value'].sum()
-            temp_drop_df.loc[:, 'buy_value'] = temp_drop_df['BuyQty'] * temp_drop_df['BuyPrice']
-            drop_buy_value = temp_drop_df['buy_value'].sum()
+            if each_strike in compare_strikes:
+                op_buy_qty = sum(temp_op_df['BuyQty'])
+                drop_buy_qty = sum(temp_drop_df['BuyQty'])
+                op_buy_price = temp_op_df['BuyPrice'].values[0]
+                drop_buy_price = temp_drop_df['BuyPrice'].tolist()
+                if len(temp_op_df['BuyQty']) > 1 or len(temp_op_df['BuyPrice']) > 1:
+                    print('a')
+                temp_op_df.loc[:, 'buy_value'] = temp_op_df['BuyQty'] * temp_op_df['BuyPrice']
+                op_buy_value = temp_op_df['buy_value'].sum()
+                temp_drop_df.loc[:, 'buy_value'] = temp_drop_df['BuyQty'] * temp_drop_df['BuyPrice']
+                drop_buy_value = temp_drop_df['buy_value'].sum()
 
-            op_sell_qty = sum(temp_op_df['SellQty'])
-            drop_sell_qty = sum(temp_drop_df['SellQty'])
-            op_sell_price = temp_op_df['SellPrice'].values[0]
-            drop_sell_price = temp_drop_df['SellPrice'].tolist()
-            if len(temp_op_df['SellQty']) > 1 or len(temp_op_df['SellPrice']) > 1:
-                print('a')
-            temp_op_df.loc[:, 'sell_value'] = temp_op_df['SellQty'] * temp_op_df['SellPrice']
-            op_sell_value = temp_op_df['sell_value'].sum()
-            temp_drop_df.loc[:, 'sell_value'] = temp_drop_df['SellQty'] * temp_drop_df['SellPrice']
-            drop_sell_value = temp_drop_df['sell_value'].sum()
+                op_sell_qty = sum(temp_op_df['SellQty'])
+                drop_sell_qty = sum(temp_drop_df['SellQty'])
+                op_sell_price = temp_op_df['SellPrice'].values[0]
+                drop_sell_price = temp_drop_df['SellPrice'].tolist()
+                if len(temp_op_df['SellQty']) > 1 or len(temp_op_df['SellPrice']) > 1:
+                    print('a')
+                temp_op_df.loc[:, 'sell_value'] = temp_op_df['SellQty'] * temp_op_df['SellPrice']
+                op_sell_value = temp_op_df['sell_value'].sum()
+                temp_drop_df.loc[:, 'sell_value'] = temp_drop_df['SellQty'] * temp_drop_df['SellPrice']
+                drop_sell_value = temp_drop_df['sell_value'].sum()
 
-            if op_sell_qty != drop_sell_qty:
-                i += 1
-                print(
-                    f'{i}. Sell Quantity Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell qty is not matching with the dropcopy sell qty\ndropcopy_sell_qty:{drop_sell_qty}, our_sell_qty:{op_sell_qty}\n')
-                flag = False
+                if op_sell_qty != drop_sell_qty or op_sell_price != drop_sell_price or op_buy_price!= drop_buy_price or op_buy_qty != drop_buy_qty:
+                    if mismatch == 0:
+                        print('Mismatch')
+                        mismatch = 1
 
-            if op_sell_price != drop_sell_price:
-                i += 1
-                print(
-                    f'{i}. Sell Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell price is not matching with the dropcopy sell price\ndropcopy_sell_price:{drop_sell_price}, our_sell_price:{op_sell_price}\n')
-                flag = False
+                if op_sell_qty != drop_sell_qty:
+                    i += 1
+                    print(
+                        f'{i}. Sell Quantity Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell qty is not matching with the dropcopy sell qty\nour_sell_qty:{op_sell_qty}, dropcopy_sell_qty:{drop_sell_qty}\n')
+                    flag = False
 
+                if op_sell_price != drop_sell_price:
+                    i += 1
+                    print(
+                        f'{i}. Sell Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell price is not matching with the dropcopy sell price\nour_sell_price:{op_sell_price}, dropcopy_sell_price:{drop_sell_price[0]}\n')
+                    flag = False
 
-            if op_buy_price!= drop_buy_price:
-                i += 1
-                print(
-                    f'{i}. Buy Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur buy price is not matching with the dropcopy buy price\ndropcopy_buy_price:{drop_buy_price}, our_buy_price:{op_buy_price}\n')
-                flag = False
+                if op_buy_price!= drop_buy_price:
+                    i += 1
+                    print(
+                        f'{i}. Buy Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur buy price is not matching with the dropcopy buy price\nour_buy_price:{op_buy_price}, dropcopy_buy_price:{drop_buy_price[0]}\n')
+                    flag = False
 
-            if op_buy_qty != drop_buy_qty:
-                i += 1
-                print(
-                    f'{i}. Buy Quantity Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur buy qty is not matching with the dropcopy buy qty\ndropcopy_buy_qty:{drop_buy_qty}, our_buy_qty:{op_buy_qty}\n')
-                flag = False
+                if op_buy_qty != drop_buy_qty:
+                    i += 1
+                    print(
+                        f'{i}. Buy Quantity Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur buy qty is not matching with the dropcopy buy qty\nour_buy_qty:{op_buy_qty}, dropcopy_buy_qty:{drop_buy_qty}\n')
+                    flag = False
+            else:
+                temp_op_df = filtered_df.query(
+                    "Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
+                op_buy_qty = sum(temp_op_df['BuyQty'])
+                op_buy_price = temp_op_df['BuyPrice'].values[0]
+                op_sell_qty = sum(temp_op_df['SellQty'])
+                op_sell_price = temp_op_df['SellPrice'].values[0]
+                temp_drop_df = filtered_df.query(
+                    "Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
+                drop_buy_qty = sum(temp_drop_df['BuyQty'])
+                drop_buy_price = temp_drop_df['BuyPrice'].tolist()
+                drop_sell_qty = sum(temp_drop_df['SellQty'])
+                drop_sell_price = temp_drop_df['SellPrice'].tolist()
+                if use == 'net_pos':
+                    print(f'Trade missing in Net Position but present in DropCopy.\n{symbol}, {expiry.date()}, {opttype}, {each_strike}\n Buy(Qty,Price): {op_buy_qty}, {op_buy_price}\n Sell(Qty,Price): {op_sell_qty}, {op_sell_price}\n')
+                    missing_trade = 1
+                else:
+                    print(f'Trade present in Net Position but missing in DropCopy.\n{symbol}, {expiry.date()}, {opttype}, {each_strike}\n Buy(Qty,Price): {drop_buy_qty}, {drop_buy_price[0]}\n Sell(Qty,Price): {drop_sell_qty}, {drop_sell_price[0]}\n')
+                    missing_trade = 1
 
 
     if flag:
-        print(f'No mismatch between the dropcopy and inhouse consolidated trade (net positions) file\n')
+        if not missing_trade:
+            print(f'No mismatch between the dropcopy and inhouse consolidated trade (net positions) file\n')
+        else:
+            print(f'\nFor rest of the trades in {each_server}, No mismatch between the dropcopy and inhouse consolidated trade (net positions) file\n')
 
 
 # if flag:
