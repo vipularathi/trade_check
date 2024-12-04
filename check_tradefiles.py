@@ -29,9 +29,10 @@ def convert_to_timestamp(date_str):
 
 server_list = ['main', 'backup', 'team']
 
-i=0
+
 print('\n')
 for each_server in server_list:
+    i = 0
     flag = True
     mismatch = 0
     missing_trade = 0
