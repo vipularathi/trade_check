@@ -29,9 +29,10 @@ def convert_to_timestamp(date_str):
 
 server_list = ['main', 'backup', 'team']
 
-i=0
+
 print('\n')
 for each_server in server_list:
+    i = 0
     flag = True
     mismatch = 0
     missing_trade = 0
@@ -132,7 +133,7 @@ for each_server in server_list:
                 temp_drop_df.loc[:, 'sell_value'] = temp_drop_df['SellQty'] * temp_drop_df['SellPrice']
                 drop_sell_value = temp_drop_df['sell_value'].sum()
 
-                if op_sell_qty != drop_sell_qty or op_sell_price != drop_sell_price or op_buy_price!= drop_buy_price or op_buy_qty != drop_buy_qty:
+                if op_sell_qty != drop_sell_qty or abs(op_sell_price - drop_sell_price) >= 1 or abs(op_buy_price - drop_buy_price) >= 1 or op_buy_qty != drop_buy_qty:
                     if mismatch == 0:
                         print('Mismatch')
                         mismatch = 1
@@ -143,13 +144,13 @@ for each_server in server_list:
                         f'{i}. Sell Quantity Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell qty is not matching with the dropcopy sell qty\nour_sell_qty:{op_sell_qty}, dropcopy_sell_qty:{drop_sell_qty}\n')
                     flag = False
 
-                if op_sell_price != drop_sell_price:
+                if abs(op_sell_price - drop_sell_price) >= 1:
                     i += 1
                     print(
                         f'{i}. Sell Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell price is not matching with the dropcopy sell price\nour_sell_price:{op_sell_price}, dropcopy_sell_price:{drop_sell_price[0]}\n')
                     flag = False
 
-                if op_buy_price!= drop_buy_price:
+                if abs(op_buy_price - drop_buy_price) >= 1:
                     i += 1
                     print(
                         f'{i}. Buy Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur buy price is not matching with the dropcopy buy price\nour_buy_price:{op_buy_price}, dropcopy_buy_price:{drop_buy_price[0]}\n')
