@@ -36,6 +36,7 @@ for each_server in server_list:
     flag = True
     mismatch = 0
     missing_trade = 0
+    no_trade = False
     print(f'Server: {each_server.upper()}')
     our_pattern = rf'net_positions_({each_server.lower()}|{each_server.upper()})_{today.strftime("%Y%m%d")}\.csv'  # sample = net_positions_BACKUP_20241202.csv
     drop_pattern = rf'dropcopy_({each_server.lower()}|{each_server.upper()}|{each_server.capitalize()})_positions_{today.strftime("%Y%m%d")}_\d{{6}}\.xlsx'  # sample = dropcopy_positions_20241107_165710
@@ -70,7 +71,11 @@ for each_server in server_list:
     filtered_df = pd.DataFrame()
     drop_strikes = df_drop.StrikePrice.unique()
     op_strikes = df_output.StrikePrice.unique()
-    if len(op_strikes) <= len(drop_strikes):
+    if len(op_strikes) == len(drop_strikes) == 0:
+        no_trade = True
+        print(f'No trade found for server: {each_server}\n')
+        continue
+    elif len(op_strikes) <= len(drop_strikes):
         filtered_df = df_drop.copy()
         use = 'net_pos'
         # print('missing trade in net position file')
@@ -183,9 +188,9 @@ for each_server in server_list:
 
 
     if flag:
-        if not missing_trade:
+        if not missing_trade and not no_trade:
             print(f'No mismatch between the dropcopy and inhouse consolidated trade (net positions) file\n')
-        else:
+        elif not no_trade:
             print(f'\nFor rest of the trades in {each_server}, No mismatch between the dropcopy and inhouse consolidated trade (net positions) file\n')
 
 
