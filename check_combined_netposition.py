@@ -35,7 +35,7 @@ a=0
 #         print(f'Error: Failed to download file. Status code: {response.status_code}')
 b=0
 print('\n')
-print(f'Server: COMBINED  NET POSITION')
+print(f'File: COMBINED NET POSITION')
 download_url = base_url+key_list[0]
 df_combined = pd.read_csv(download_url)
 df_combined.columns = df_combined.columns.str.replace(' ','')
@@ -47,6 +47,10 @@ for each in key_list[1:]:
     i=0
     flag=True
     download_url = base_url+each
+    resp_code = requests.get(download_url)
+    if resp_code.status_code != 200:
+        print(f'No trade found for server: {endpoint_filename_server_dict[each][2]}\n')
+        continue
     df_each = pd.read_csv(download_url)
     # print(each,'\n',df_each)
     source1 = endpoint_filename_server_dict[each][1]

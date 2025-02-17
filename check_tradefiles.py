@@ -9,8 +9,8 @@ warnings.filterwarnings("ignore", category=pd.errors.SettingWithCopyWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*truth value of an empty array is ambiguous.*")
 pd.set_option('display.max_columns', None)
 
-# today = datetime.now().date()
-today = pd.to_datetime('20250213').date()
+today = datetime.now().date()
+# today = pd.to_datetime('20250213').date()
 # # drop_pattern = rf'dropcopy_(MAIN|main|TEAM|team|BACKUP|backup)_positions_{today.strftime("%Y%m%d")}_\d{{6}}\.xlsx' # sample = dropcopy_positions_20241107_165710
 # our_pattern = rf'Output_{today.strftime("%d-%b-%y")} \d{{2}}-\d{{2}}-\d{{2}}\.xlsx' # sample = Output_07-Nov-24 15-34-07.xlsx
 
@@ -49,9 +49,11 @@ for each_server in server_list:
     # ====================================================================================================
     if each_server != 'INHOUSEALGO_NETPOSITION':
         drop_matched_files = [f for f in os.listdir(their_file_path) if re.match(drop_pattern, f)]
-        if len(drop_matched_files) == 0:
-            print(f'Please download today\'s dropcopy file for Server: {each_server}')
-            break
+        our_matched_files = [f for f in os.listdir(our_file_path) if re.match(our_pattern, f)]
+        if len(drop_matched_files) == 0 or len(our_matched_files) == 0:
+            # print(f'Please download today\'s dropcopy file for Server: {each_server}')
+            print(f'No trade found for Server: {each_server}\n')
+            continue
         df_drop = pd.DataFrame()
         for each_file in drop_matched_files:
             temp_df = pd.read_excel(os.path.join(their_file_path, each_file), index_col=False)
@@ -59,10 +61,10 @@ for each_server in server_list:
             df_drop = df_drop.iloc[:, 1:]
             df_drop['Expiry'] = df_drop['Expiry'].apply(convert_to_timestamp)  # sample=2025February27th
         # ---------------------------------------------------------------------------------------------------
-        our_matched_files = [f for f in os.listdir(our_file_path) if re.match(our_pattern, f)]
-        if len(our_matched_files) == 0:
-            print(f'Please download today\'s net positions file for Server: {each_server}')
-            break
+        # our_matched_files = [f for f in os.listdir(our_file_path) if re.match(our_pattern, f)]
+        # if len(our_matched_files) == 0:
+        #     print(f'Please download today\'s net positions file for Server: {each_server}')
+        #     break
         df_output = pd.DataFrame()
         for each_file in our_matched_files:
             temp_df = pd.read_csv(os.path.join(our_file_path, each_file), index_col=False)
@@ -71,8 +73,9 @@ for each_server in server_list:
     # ---------------------------------------------------------------------------------------------------
     else:
         our_inhouse_matched_files = [f for f in os.listdir(our_file_path) if re.match(inhouse_pattern, f)]
-        if len(our_inhouse_matched_files) == 0:
-            print(f'Please download today\'s inhouse net qty file from file downloader portal')
+        drop_inhouse_matched_files = [f for f in os.listdir(their_file_path) if re.match(inhouse_pattern, f)]
+        if len(our_inhouse_matched_files) == 0 or len(drop_inhouse_matched_files) == 0:
+            print(f'No trades to match b/w DC net qty and InhouseAlgo net qty\n')
             break
         df_our_inhouse = pd.DataFrame()
         for each_file in our_inhouse_matched_files:
@@ -80,10 +83,10 @@ for each_server in server_list:
             df_our_inhouse = pd.concat([df_our_inhouse, temp_df])
             df_our_inhouse.Expiry = pd.to_datetime(df_our_inhouse.Expiry)  # sample=27-02-2025
         # ---------------------------------------------------------------------------------------------------
-        drop_inhouse_matched_files = [f for f in os.listdir(their_file_path) if re.match(inhouse_pattern, f)]
-        if len(drop_inhouse_matched_files) == 0:
-            print(f'Please download today\'s inhouse net qty file from DC NET Quantity portal')
-            break
+        # drop_inhouse_matched_files = [f for f in os.listdir(their_file_path) if re.match(inhouse_pattern, f)]
+        # if len(drop_inhouse_matched_files) == 0:
+        #     print(f'Please download today\'s inhouse net qty file from DC NET Quantity portal')
+        #     break
         df_drop_inhouse = pd.DataFrame()
         for each_file in drop_inhouse_matched_files:
             temp_df = pd.read_csv(os.path.join(their_file_path, each_file), index_col=False)
