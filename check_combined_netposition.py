@@ -2,6 +2,7 @@ import requests
 import os
 import pandas as pd
 import warnings
+from datetime import datetime, timedelta, date
 
 warnings.filterwarnings("ignore")
 root_dir = os.getcwd()
@@ -20,19 +21,18 @@ endpoint_filename_server_dict = {
 key_list = list(endpoint_filename_server_dict.keys())
 # filename_dict = 'inhouse_test.csv'
 a=0
-# for key, value in endpoint_filename_server_dict.items():
-#     download_url = base_url+key
-#     response= requests.get(url=download_url, stream=True)
-#     combined_file_path = os.path.join(combined_dir, value)
-#
-#     if response.status_code == 200:
-#         with open(combined_file_path, 'wb') as file:
-#             for chunk in response.iter_content(chunk_size=1024):
-#                 file.write(chunk)
-#         print(f'file: {value} downloaded successfully')
-#
-#     else:
-#         print(f'Error: Failed to download file. Status code: {response.status_code}')
+def convert_to_timestamp(date_input):
+    if isinstance(date_input, date):
+        return date_input
+    if isinstance(date_input, str):
+        date_str = date_input.replace('st', '').replace('nd', '').replace('rd', '').replace('th', '').replace(' ','')
+        date_format = ['%Y%B%d', '%Y-%m-%d']
+        for each in date_format:
+            try:
+                return pd.to_datetime(date_str, format=each).date()
+            except ValueError:
+                continue
+    return pd.NaT
 b=0
 print('\n')
 print(f'File: COMBINED NET POSITION')
@@ -40,6 +40,7 @@ download_url = base_url+key_list[0]
 df_combined = pd.read_csv(download_url)
 df_combined.columns = df_combined.columns.str.replace(' ','')
 df_combined.rename(columns={'Series/Expiry':'Expiry', 'Strike':'StrikePrice', 'OptionType':'InstType'}, inplace=True)
+df_combined['Expiry'] = df_combined['Expiry'].apply(convert_to_timestamp)
 for each in key_list[1:]:
     mismatch = 0
     missing_trade = 0
@@ -49,16 +50,17 @@ for each in key_list[1:]:
     download_url = base_url+each
     resp_code = requests.get(download_url)
     if resp_code.status_code != 200:
-        print(f'No trade found for server: {endpoint_filename_server_dict[each][2]}\n')
+        print(f'No trade found for file: {endpoint_filename_server_dict[each][2]}\n')
         continue
     df_each = pd.read_csv(download_url)
     # print(each,'\n',df_each)
+    df_each.Expiry = df_each.Expiry.apply(convert_to_timestamp)
     source1 = endpoint_filename_server_dict[each][1]
     # print(f'source1 is {source1}')
     df_extract = df_combined.query("Source1 == @source1")
     if len(df_each) == len(df_extract) == 0:
         no_trade = True
-        print(f'No trade found for server: {endpoint_filename_server_dict[each][2]}\n')
+        print(f'No trade found for file: {endpoint_filename_server_dict[each][2]}\n')
         continue
     elif len(df_each) <= len(df_extract):
         filtered_df = df_extract.copy()
@@ -76,11 +78,15 @@ for each in key_list[1:]:
         opttype = row['InstType']
         for each_strike in row['StrikePrice']:
             if use == 'extract':
+                # if len(df_extract.query("Expiry == @expiry")) == 0:
+                #     df_extract.Expiry = df_extract.Expiry.apply(convert_to_timestamp)
                 temp_drop_df = df_extract.query("Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
                 temp_op_df = filtered_df.query("Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
                 compare_strike = temp_drop_df.StrikePrice.unique()
                 compare_insttype = temp_drop_df.InstType.unique()
             elif use == 'each':
+                # if len(df_each.query("Expiry == @expiry")) == 0:
+                #     df_each.Expiry = df_each.Expiry.apply(convert_to_timestamp)
                 temp_op_df = df_each.query(
                     "Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
                 temp_drop_df = filtered_df.query(
@@ -119,22 +125,22 @@ for each in key_list[1:]:
 
                 if op_sell_qty != drop_sell_qty:
                     i += 1
-                    print(f'{i}. Sell Quantity Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell qty is not matching with the dropcopy sell qty\nour_sell_qty:{op_sell_qty}, dropcopy_sell_qty:{drop_sell_qty}\n')
+                    print(f'{i}. Sell Quantity Mismatch: {symbol}, {expiry}, {opttype}, {each_strike}\nOur sell qty is not matching with the dropcopy sell qty\nour_sell_qty:{op_sell_qty}, dropcopy_sell_qty:{drop_sell_qty}\n')
                     flag = False
 
                 if abs(op_sell_price - drop_sell_price) >= 1:
                     i += 1
-                    print(f'{i}. Sell Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell price is not matching with the dropcopy sell price\nour_sell_price:{op_sell_price}, dropcopy_sell_price:{drop_sell_price[0]}\n')
+                    print(f'{i}. Sell Price Mismatch: {symbol}, {expiry}, {opttype}, {each_strike}\nOur sell price is not matching with the dropcopy sell price\nour_sell_price:{op_sell_price}, dropcopy_sell_price:{drop_sell_price[0]}\n')
                     flag = False
 
                 if abs(op_buy_price - drop_buy_price) >= 1:
                     i += 1
-                    print(f'{i}. Buy Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur buy price is not matching with the dropcopy buy price\nour_buy_price:{op_buy_price}, dropcopy_buy_price:{drop_buy_price[0]}\n')
+                    print(f'{i}. Buy Price Mismatch: {symbol}, {expiry}, {opttype}, {each_strike}\nOur buy price is not matching with the dropcopy buy price\nour_buy_price:{op_buy_price}, dropcopy_buy_price:{drop_buy_price[0]}\n')
                     flag = False
 
                 if op_buy_qty != drop_buy_qty:
                     i += 1
-                    print(f'{i}. Buy Quantity Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur buy qty is not matching with the dropcopy buy qty\nour_buy_qty:{op_buy_qty}, dropcopy_buy_qty:{drop_buy_qty}\n')
+                    print(f'{i}. Buy Quantity Mismatch: {symbol}, {expiry}, {opttype}, {each_strike}\nOur buy qty is not matching with the dropcopy buy qty\nour_buy_qty:{op_buy_qty}, dropcopy_buy_qty:{drop_buy_qty}\n')
                     flag = False
             else:
                 temp_op_df = filtered_df.query(
@@ -151,16 +157,16 @@ for each in key_list[1:]:
                 drop_sell_price = temp_drop_df['SellPrice'].tolist()
                 if use == 'each':
                     print(
-                        f'Trade missing in {endpoint_filename_server_dict[each][2]} file but present in combined file.\n{symbol}, {expiry.date()}, {opttype}, {each_strike}\n Buy(Qty,Price): {op_buy_qty}, {op_buy_price}\n Sell(Qty,Price): {op_sell_qty}, {op_sell_price}\n')
+                        f'Trade missing in {endpoint_filename_server_dict[each][2]} file but present in combined file.\n{symbol}, {expiry}, {opttype}, {each_strike}\n Buy(Qty,Price): {op_buy_qty}, {op_buy_price}\n Sell(Qty,Price): {op_sell_qty}, {op_sell_price}\n')
                     missing_trade = 1
                 elif use == 'extract':
                     print(
-                        f'Trade present in {endpoint_filename_server_dict[each][2]} file but missing in combined file.\n{symbol}, {expiry.date()}, {opttype}, {each_strike}\n Buy(Qty,Price): {drop_buy_qty}, {drop_buy_price[0]}\n Sell(Qty,Price): {drop_sell_qty}, {drop_sell_price[0]}\n')
+                        f'Trade present in {endpoint_filename_server_dict[each][2]} file but missing in combined file.\n{symbol}, {expiry}, {opttype}, {each_strike}\n Buy(Qty,Price): {drop_buy_qty}, {drop_buy_price[0]}\n Sell(Qty,Price): {drop_sell_qty}, {drop_sell_price[0]}\n')
                     missing_trade = 1
     if flag:
         if not missing_trade and not no_trade:
-            print(f'No mismatch between the combined and {endpoint_filename_server_dict[each][2]} file\n')
+            print(f'No mismatch for file: {endpoint_filename_server_dict[each][2]}\n')
         elif not no_trade:
             print(
-                f'\nFor rest of the trades in {endpoint_filename_server_dict[each][2]}, No mismatch between the combined and inhouse {each} net positions file\n')
+                f'\nFor rest of the trades in {endpoint_filename_server_dict[each][2]}, No mismatch in {endpoint_filename_server_dict[each][2]}\n')
 c=0

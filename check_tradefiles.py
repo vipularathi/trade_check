@@ -110,15 +110,15 @@ for each_server in server_list:
     # drop_inhouse_strikes = df_drop_inhouse.StrikePrice.unique()
     # our_inhouse_strikes = df_our_inhouse.StrikePrice.unique()
 
-    if len(df_output) == len(df_drop) == 0 and each_server != 'INHOUSEALGO_NETPOSITION':
+    if each_server != 'INHOUSEALGO_NETPOSITION' and len(df_output) == len(df_drop) == 0:
         no_trade = True
         print(f'No trade found for server: {each_server}\n')
         continue
-    elif len(df_output) <= len(df_drop) and each_server != 'INHOUSEALGO_NETPOSITION':
+    elif each_server != 'INHOUSEALGO_NETPOSITION' and len(df_output) <= len(df_drop):
         filtered_df = df_drop.copy()
         use = 'net_pos'
         # print('missing trade in net position file')
-    elif len(df_output) >= len(df_drop) and each_server != 'INHOUSEALGO_NETPOSITION':
+    elif each_server != 'INHOUSEALGO_NETPOSITION' and len(df_output) >= len(df_drop):
         filtered_df = df_output.copy()
         use = 'drop'
         # print('No missing trades')
