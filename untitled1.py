@@ -26,7 +26,7 @@ def convert_to_timestamp(date_input):
         return date_input
     if isinstance(date_input, str):
         date_str = date_input.replace('st', '').replace('nd', '').replace('rd', '').replace('th', '').replace(' ','')
-        date_format = ['%Y%B%d', '%Y-%m-%d']
+        date_format = ['%Y%B%d', '%Y-%m-%d', '%d-%m-%Y']
         for each in date_format:
             try:
                 return pd.to_datetime(date_str, format=each).date()
@@ -37,11 +37,9 @@ b=0
 print('\n')
 print(f'File: COMBINED NET POSITION')
 download_url = base_url+key_list[0]
-resp_code = requests.get(download_url)
-if resp_code != 200:
-    print('\n'.join([f'No trade found for file: {endpoint_filename_server_dict[each][2]}' for each in key_list[1:]]))
-    exit()
-df_combined = pd.read_csv(download_url)
+# df_combined = pd.read_csv(download_url)
+df_combined = pd.read_csv(rf"C:\Users\vipulanand\Downloads\combined.csv", index_col=False)
+rest = [rf"C:\Users\vipulanand\Downloads\bse_nest.csv",rf"C:\Users\vipulanand\Downloads\nse_nest.csv",rf"C:\Users\vipulanand\Downloads\Inhouse_algo.csv",rf"C:\Users\vipulanand\Downloads\main_demo.csv",rf"C:\Users\vipulanand\Downloads\backup.csv"]
 df_combined.columns = df_combined.columns.str.replace(' ','')
 df_combined.rename(columns={'Series/Expiry':'Expiry', 'Strike':'StrikePrice', 'OptionType':'InstType'}, inplace=True)
 df_combined['Expiry'] = df_combined['Expiry'].apply(convert_to_timestamp)
@@ -56,7 +54,18 @@ for each in key_list[1:]:
     if resp_code.status_code != 200:
         print(f'No trade found for file: {endpoint_filename_server_dict[each][2]}\n')
         continue
-    df_each = pd.read_csv(download_url)
+    # df_each = pd.read_csv(download_url)
+    df_each = pd.DataFrame()
+    if each == 'nest_bse_net':
+        df_each = pd.read_csv(rf"C:\Users\vipulanand\Downloads\bse_nest.csv", index_col=False)
+    elif each == 'nest_nse_net':
+        df_each = pd.read_csv(rf"C:\Users\vipulanand\Downloads\nse_nest.csv", index_col=False)
+    elif each == 'Inhouse_algo':
+        df_each = pd.read_csv(rf"C:\Users\vipulanand\Downloads\Inhouse_algo.csv", index_col=False)
+    elif each == 'main_dev':
+        df_each = pd.read_csv(rf"C:\Users\vipulanand\Downloads\main_demo.csv", index_col=False)
+    elif each == 'backup':
+        df_each = pd.read_csv(rf"C:\Users\vipulanand\Downloads\backup.csv", index_col=False)
     # print(each,'\n',df_each)
     df_each.Expiry = df_each.Expiry.apply(convert_to_timestamp)
     source1 = endpoint_filename_server_dict[each][1]
