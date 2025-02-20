@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import warnings
 from datetime import datetime, timedelta, date
+from prettytable import PrettyTable
 
 warnings.filterwarnings("ignore")
 root_dir = os.getcwd()
@@ -12,34 +13,43 @@ os.makedirs(combined_dir, exist_ok=True)
 base_url = 'http://172.16.47.87:5000/download/'
 endpoint_filename_server_dict = {
     'combined_net':['combined_net_position.csv','','COMBINED_NETPOSITION'],
-    'nest_bse_net':['nse_nest_net_position.csv','Nest-TradeHist','NSE_Nest_Netposition'],
-    'nest_nse_net':['bse_nest_net_position.csv','BSE_trades','BSE_Nest_Netposition'],
+    'nest_nse_net':['nse_nest_net_position.csv','Nest-TradeHist','NSE_Nest_Netposition'],
+    'nest_bse_net':['bse_nest_net_position.csv','BSE_trades','BSE_Nest_Netposition'],
     'Inhouse_algo':['inhouse_algo_net_position.csv','Inhouse_algo','Inhouse_Algo_Netposition'],
     'main_dev':['main_net_position.csv','Algo_main_demo','Main_Netposition'],
     'backup':['backup_net_position.csv','Algo_backup','Backup_Netposition']
 }
 key_list = list(endpoint_filename_server_dict.keys())
-# filename_dict = 'inhouse_test.csv'
-a=0
+
 def convert_to_timestamp(date_input):
     if isinstance(date_input, date):
         return date_input
     if isinstance(date_input, str):
         date_str = date_input.replace('st', '').replace('nd', '').replace('rd', '').replace('th', '').replace(' ','')
-        date_format = ['%Y%B%d', '%Y-%m-%d']
+        date_format = ['%Y%B%d', '%Y-%m-%d', '%d-%m-%Y']
         for each in date_format:
             try:
                 return pd.to_datetime(date_str, format=each).date()
             except ValueError:
                 continue
     return pd.NaT
-b=0
+
 print('\n')
 print(f'File: COMBINED NET POSITION')
 download_url = base_url+key_list[0]
-resp_code = requests.get(download_url)
-if resp_code != 200:
-    print('\n'.join([f'No trade found for file: {endpoint_filename_server_dict[each][2]}' for each in key_list[1:]]))
+resp = requests.get(download_url)
+missing_flag = False
+if resp.status_code != 200:
+    for key in key_list[1:]:
+        download_url = base_url + key
+        resp = requests.get(download_url)
+        if resp.status_code == 200:
+            df_each = pd.read_csv(download_url)
+            if len(df_each) != 0:
+                print(rf'Combined file doesn\'t have data for file: {endpoint_filename_server_dict[key][2]}. Please check the combined file.')
+                missing_flag = True
+    if missing_flag == False:
+        print('\n'.join([f'No trade found for file: {endpoint_filename_server_dict[each][2]}' for each in key_list[1:]]))
     exit()
 df_combined = pd.read_csv(download_url)
 df_combined.columns = df_combined.columns.str.replace(' ','')
@@ -52,12 +62,11 @@ for each in key_list[1:]:
     i=0
     flag=True
     download_url = base_url+each
-    resp_code = requests.get(download_url)
-    if resp_code.status_code != 200:
+    resp = requests.get(download_url)
+    if resp.status_code != 200:
         print(f'No trade found for file: {endpoint_filename_server_dict[each][2]}\n')
         continue
     df_each = pd.read_csv(download_url)
-    # print(each,'\n',df_each)
     df_each.Expiry = df_each.Expiry.apply(convert_to_timestamp)
     source1 = endpoint_filename_server_dict[each][1]
     # print(f'source1 is {source1}')
@@ -72,7 +81,7 @@ for each in key_list[1:]:
     else:
         filtered_df = df_each.copy()
         use = 'extract'
-
+    df_combined.drop(df_combined.query("Source1 == @source1").index, inplace=True)
     # drop=extract,         output=each
 
     grouped_df = filtered_df.groupby(by=['Symbol', 'Expiry', 'InstType'])['StrikePrice'].unique().reset_index()
@@ -82,15 +91,11 @@ for each in key_list[1:]:
         opttype = row['InstType']
         for each_strike in row['StrikePrice']:
             if use == 'extract':
-                # if len(df_extract.query("Expiry == @expiry")) == 0:
-                #     df_extract.Expiry = df_extract.Expiry.apply(convert_to_timestamp)
                 temp_drop_df = df_extract.query("Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
                 temp_op_df = filtered_df.query("Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
                 compare_strike = temp_drop_df.StrikePrice.unique()
                 compare_insttype = temp_drop_df.InstType.unique()
             elif use == 'each':
-                # if len(df_each.query("Expiry == @expiry")) == 0:
-                #     df_each.Expiry = df_each.Expiry.apply(convert_to_timestamp)
                 temp_op_df = df_each.query(
                     "Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
                 temp_drop_df = filtered_df.query(
@@ -103,8 +108,7 @@ for each in key_list[1:]:
                 drop_buy_qty = sum(temp_drop_df['BuyQty'])
                 op_buy_price = temp_op_df['BuyPrice'].values[0]
                 drop_buy_price = temp_drop_df['BuyPrice'].tolist()
-                # if len(temp_op_df['BuyQty']) > 1 or len(temp_op_df['BuyPrice']) > 1:
-                #     print('a')
+
                 temp_op_df.loc[:, 'buy_value'] = temp_op_df['BuyQty'] * temp_op_df['BuyPrice']
                 op_buy_value = temp_op_df['buy_value'].sum()
                 temp_drop_df.loc[:, 'buy_value'] = temp_drop_df['BuyQty'] * temp_drop_df['BuyPrice']
@@ -114,8 +118,7 @@ for each in key_list[1:]:
                 drop_sell_qty = sum(temp_drop_df['SellQty'])
                 op_sell_price = temp_op_df['SellPrice'].values[0]
                 drop_sell_price = temp_drop_df['SellPrice'].tolist()
-                # if len(temp_op_df['SellQty']) > 1 or len(temp_op_df['SellPrice']) > 1:
-                #     print('a')
+
                 temp_op_df.loc[:, 'sell_value'] = temp_op_df['SellQty'] * temp_op_df['SellPrice']
                 op_sell_value = temp_op_df['sell_value'].sum()
                 temp_drop_df.loc[:, 'sell_value'] = temp_drop_df['SellQty'] * temp_drop_df['SellPrice']
@@ -173,4 +176,11 @@ for each in key_list[1:]:
         elif not no_trade:
             print(
                 f'\nFor rest of the trades in {endpoint_filename_server_dict[each][2]}, No mismatch in {endpoint_filename_server_dict[each][2]}\n')
-c=0
+if len(df_combined) != 0:
+    print(f'\nExtra trades found in combined file for source - {df_combined.Source1.unique().tolist()}.\nDetails:')
+    table = PrettyTable()
+    for col in df_combined.columns:
+        table.add_column(col, df_combined[col].tolist())
+    print(table)
+else:
+    print('No extra trades found in combined file.')
