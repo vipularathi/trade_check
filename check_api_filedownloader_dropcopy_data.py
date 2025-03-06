@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, date
 from prettytable import PrettyTable
 import re
 
+pd.set_option('display.float_format', lambda a:'%.2f' %a)
+
 warnings.filterwarnings("ignore")
 root_dir = os.getcwd()
 combined_dir = os.path.join(root_dir,'Combined_files')
@@ -13,14 +15,13 @@ os.makedirs(combined_dir, exist_ok=True)
 today = datetime.now().date()
 
 their_file_path = os.path.join(root_dir, 'Their_file')
-
 backup_main_url = 'http://172.16.47.87:5000/download/'
 team_url = 'http://172.16.47.87:5001/download/'
 
 route_dict = {
     'dropcopy':['backup','main','team'],
     'file_downloader':[{'backup':backup_main_url+'backup', 'main':backup_main_url + 'main_dev', 'team':team_url + 'team'}],
-    'api':[{'backup':rf"D:\trade_file_analysis\w_api\backup.csv",'main':rf"D:\trade_file_analysis\w_api\main_demo.csv",'team':rf"D:\trade_file_analysis\w_api\team.csv"}]
+    'api':[{'backup':rf"W:\Options & Futures Data\QI_Trades\API\backup.csv",'main':rf"W:\Options & Futures Data\QI_Trades\API\main_demo.csv",'team':rf"W:\Options & Futures Data\QI_Trades\API\team.csv"}]
 }
 
 def convert_to_timestamp(date_input):

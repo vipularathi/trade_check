@@ -5,6 +5,7 @@ import warnings
 from datetime import datetime, timedelta, date
 from prettytable import PrettyTable
 
+pd.set_option('display.float_format', lambda a:'%.2f' %a)
 warnings.filterwarnings("ignore")
 root_dir = os.getcwd()
 combined_dir = os.path.join(root_dir,'Combined_files')

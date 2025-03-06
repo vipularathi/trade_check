@@ -8,6 +8,7 @@ import warnings
 warnings.filterwarnings("ignore", category=pd.errors.SettingWithCopyWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*truth value of an empty array is ambiguous.*")
 pd.set_option('display.max_columns', None)
+pd.set_option('display.float_format', lambda a:'%.2f' %a)
 
 today = datetime.now().date()
 # today = pd.to_datetime('20250213').date()
