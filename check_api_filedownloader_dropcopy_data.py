@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, date
 from prettytable import PrettyTable
 import re
 
+pd.set_option('display.float_format', lambda a:'%.2f' %a)
 warnings.filterwarnings("ignore")
 root_dir = os.getcwd()
 combined_dir = os.path.join(root_dir,'Combined_files')
@@ -14,13 +15,34 @@ today = datetime.now().date()
 
 their_file_path = os.path.join(root_dir, 'Their_file')
 
+base_url = 'http://172.16.47.87:5000/download/'
+endpoint_filename_server_dict = {
+    'combined_net':['combined_net_position.csv','','COMBINED_NETPOSITION'],
+    'nest_nse_net':['nse_nest_net_position.csv','Nest-TradeHist','NSE_Nest_Netposition'],
+    'nest_bse_net':['bse_nest_net_position.csv','BSE_trades','BSE_Nest_Netposition'],
+    'Inhouse_algo':['inhouse_algo_net_position.csv','Inhouse_algo','Inhouse_Algo_Netposition'],
+    'main_dev':['main_net_position.csv','Algo_main_demo','Main_Netposition'],
+    'backup':['backup_net_position.csv','Algo_backup','Backup_Netposition']
+}
+key_list = list(endpoint_filename_server_dict.keys())
+
 backup_main_url = 'http://172.16.47.87:5000/download/'
 team_url = 'http://172.16.47.87:5001/download/'
-
+for_server = ['backup','main_demo','team','algo2']
 route_dict = {
-    'dropcopy':['backup','main','team'],
-    'file_downloader':[{'backup':backup_main_url+'backup', 'main':backup_main_url + 'main_dev', 'team':team_url + 'team'}],
-    'api':[{'backup':rf"D:\trade_file_analysis\w_api\backup.csv",'main':rf"D:\trade_file_analysis\w_api\main_demo.csv",'team':rf"D:\trade_file_analysis\w_api\team.csv"}]
+    'dropcopy':['backup','main','team','algo2'],
+    'file_downloader':[{
+        'backup':backup_main_url+ 'backup',
+        'main':backup_main_url + 'main_dev',
+        'team':team_url + 'team',
+        'algo2':backup_main_url + 'algo2_pos'
+    }],
+    'api':[{
+        'backup':rf"D:\trade_file_analysis\API\backup.csv",
+        'main':rf"D:\trade_file_analysis\API\main_demo.csv",
+        'team':rf"D:\trade_file_analysis\API\team.csv",
+        'algo2':rf"D:\trade_file_analysis\API\algo2_pos.csv"
+    }]
 }
 
 def convert_to_timestamp(date_input):
@@ -38,8 +60,9 @@ def convert_to_timestamp(date_input):
 
 
 for each_server in route_dict['dropcopy']:
-    print(f'Server: {each_server.upper()}')
+    print(f'\nServer: {each_server.upper()}')
     drop_pattern = rf'dropcopy_({each_server.lower()}|{each_server.upper()}|{each_server.capitalize()})_positions_{today.strftime("%Y%m%d")}_\d{{6}}\.xlsx'  # sample = dropcopy_positions_20241107_165710
+    # algo2 sample = dropcopy_algo2_positions_20250702_165710
     drop_matched_files = [f for f in os.listdir(their_file_path) if re.match(drop_pattern, f)]
     df_drop = pd.DataFrame()
     for each_file in drop_matched_files:
@@ -49,14 +72,11 @@ for each_server in route_dict['dropcopy']:
         df_drop['Expiry'] = df_drop['Expiry'].apply(convert_to_timestamp)  # sample=2025February27th
         # print(df_drop.head())
 
-    # df_api = pd.read_excel(route_dict[each_server][0][each_server], index_col=False)
-    # df_api = pd.read_csv(rf"D:\trade_file_analysis\w_api\backup.csv", index_col=False)
     df_api = pd.read_csv(rf"{route_dict['api'][0][each_server]}", index_col=False)
     df_api['Expiry'] = df_api['Expiry'].apply(convert_to_timestamp)  # sample=06-03-2025
     # print(df_api.head())
 
     df_file_downloader = pd.DataFrame
-    # resp = requests.get(rf'http://172.16.47.87:5000/download/backup')
     resp = requests.get(rf"{route_dict['file_downloader'][0][each_server]}")
     if resp.status_code != 200:
         if len(df_api) == len(df_drop) == 0:
@@ -71,17 +91,22 @@ for each_server in route_dict['dropcopy']:
         continue
     for cntr in range(2):
         if cntr == 0:
+            i = 0
+            flag = True
+            mismatch = 0
+            missing_trade = 0
+            no_trade = False
             for_print = 'dropcopy'
             print('API data vs dropcopy data:')
         else:
             df_drop = df_file_downloader.copy()
             for_print = 'file downloader'
+            i = 0
+            flag = True
+            mismatch = 0
+            missing_trade = 0
+            no_trade = False
             print('API data vs file downloader data:')
-        i = 0
-        flag = True
-        mismatch = 0
-        missing_trade = 0
-        no_trade = False
         if len(df_drop)<len(df_api):
             filtered_df = df_api
             use='drop'
@@ -101,7 +126,6 @@ for each_server in route_dict['dropcopy']:
                         "Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
                     temp_op_df = filtered_df.query(
                         "Symbol == @symbol and Expiry == @expiry and InstType == @opttype and StrikePrice == @each_strike")
-                    # compare_strikes = df_drop.StrikePrice.unique()
                     compare_strike = temp_drop_df.StrikePrice.unique()
                     compare_insttype = temp_drop_df.InstType.unique()
                 else:

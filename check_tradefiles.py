@@ -8,11 +8,10 @@ import warnings
 warnings.filterwarnings("ignore", category=pd.errors.SettingWithCopyWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*truth value of an empty array is ambiguous.*")
 pd.set_option('display.max_columns', None)
+pd.set_option('display.float_format', lambda a:'%.2f' %a)
 
 today = datetime.now().date()
 # today = pd.to_datetime('20250213').date()
-# # drop_pattern = rf'dropcopy_(MAIN|main|TEAM|team|BACKUP|backup)_positions_{today.strftime("%Y%m%d")}_\d{{6}}\.xlsx' # sample = dropcopy_positions_20241107_165710
-# our_pattern = rf'Output_{today.strftime("%d-%b-%y")} \d{{2}}-\d{{2}}-\d{{2}}\.xlsx' # sample = Output_07-Nov-24 15-34-07.xlsx
 
 root_dir = os.getcwd()
 our_file_path = os.path.join(root_dir, 'Our_file')
@@ -31,10 +30,6 @@ def convert_to_timestamp(date_str):
 
 
 server_list = ['main', 'backup', 'team', 'INHOUSEALGO_NETPOSITION']
-# server_name = "INHOUSEALGO_NETPOSITION"
-# our_file_path1 = r"W:\Options & Futures Data\trade_check\Our_file"
-# dropcopy_file_path1 = r"W:\Options & Futures Data\trade_check\Their_file"
-
 print('\n')
 for each_server in server_list:
     i = 0
@@ -61,10 +56,6 @@ for each_server in server_list:
             df_drop = df_drop.iloc[:, 1:]
             df_drop['Expiry'] = df_drop['Expiry'].apply(convert_to_timestamp)  # sample=2025February27th
         # ---------------------------------------------------------------------------------------------------
-        # our_matched_files = [f for f in os.listdir(our_file_path) if re.match(our_pattern, f)]
-        # if len(our_matched_files) == 0:
-        #     print(f'Please download today\'s net positions file for Server: {each_server}')
-        #     break
         df_output = pd.DataFrame()
         for each_file in our_matched_files:
             temp_df = pd.read_csv(os.path.join(our_file_path, each_file), index_col=False)
@@ -83,10 +74,6 @@ for each_server in server_list:
             df_drop_inhouse = pd.concat([df_drop_inhouse, temp_df])
             df_drop_inhouse.Expiry = pd.to_datetime(df_drop_inhouse.Expiry)  # sample=27-02-2025
         # ---------------------------------------------------------------------------------------------------
-        # drop_inhouse_matched_files = [f for f in os.listdir(their_file_path) if re.match(inhouse_pattern, f)]
-        # if len(drop_inhouse_matched_files) == 0:
-        #     print(f'Please download today\'s inhouse net qty file from DC NET Quantity portal')
-        #     break
         df_our_inhouse = pd.DataFrame()
         for each_file in our_inhouse_matched_files:
             temp_df = pd.read_csv(os.path.join(their_file_path, each_file), index_col=False)
@@ -105,10 +92,6 @@ for each_server in server_list:
 
     # ---------------------------------------------------------------------------------------------------
     filtered_df = pd.DataFrame()
-    # drop_strikes = df_drop.StrikePrice.unique()
-    # op_strikes = df_output.StrikePrice.unique()
-    # drop_inhouse_strikes = df_drop_inhouse.StrikePrice.unique()
-    # our_inhouse_strikes = df_our_inhouse.StrikePrice.unique()
 
     if each_server != 'INHOUSEALGO_NETPOSITION' and len(df_output) == len(df_drop) == 0:
         no_trade = True
@@ -181,8 +164,6 @@ for each_server in server_list:
                 drop_buy_qty = sum(temp_drop_df['BuyQty'])
                 op_buy_price = temp_op_df['BuyPrice'].values[0]
                 drop_buy_price = temp_drop_df['BuyPrice'].tolist()
-                # if len(temp_op_df['BuyQty']) > 1 or len(temp_op_df['BuyPrice']) > 1:
-                #     print('a')
                 temp_op_df.loc[:, 'buy_value'] = temp_op_df['BuyQty'] * temp_op_df['BuyPrice']
                 op_buy_value = temp_op_df['buy_value'].sum()
                 temp_drop_df.loc[:, 'buy_value'] = temp_drop_df['BuyQty'] * temp_drop_df['BuyPrice']
@@ -192,8 +173,6 @@ for each_server in server_list:
                 drop_sell_qty = sum(temp_drop_df['SellQty'])
                 op_sell_price = temp_op_df['SellPrice'].values[0]
                 drop_sell_price = temp_drop_df['SellPrice'].tolist()
-                # if len(temp_op_df['SellQty']) > 1 or len(temp_op_df['SellPrice']) > 1:
-                #     print('a')
                 temp_op_df.loc[:, 'sell_value'] = temp_op_df['SellQty'] * temp_op_df['SellPrice']
                 op_sell_value = temp_op_df['sell_value'].sum()
                 temp_drop_df.loc[:, 'sell_value'] = temp_drop_df['SellQty'] * temp_drop_df['SellPrice']
@@ -207,25 +186,25 @@ for each_server in server_list:
                 if op_sell_qty != drop_sell_qty:
                     i += 1
                     print(
-                        f'{i}. Sell Quantity Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell qty is not matching with the dropcopy sell qty\ndropcopy_sell_qty:{drop_sell_qty}, our_sell_qty:{op_sell_qty}, difference:{abs(op_sell_qty-drop_sell_qty)}\n')
+                        f'{i}. Sell Quantity Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell qty is not matching with the dropcopy sell qty\ndropcopy_sell_qty:{drop_sell_qty}, our_sell_qty:{op_sell_qty}, difference:{round(abs(op_sell_qty-drop_sell_qty),2)}\n')
                     flag = False
 
                 if abs(op_sell_price - drop_sell_price) >= 1:
                     i += 1
                     print(
-                        f'{i}. Sell Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell price is not matching with the dropcopy sell price\ndropcopy_sell_price:{drop_sell_price[0]}, our_sell_price:{op_sell_price}, difference:{abs(drop_sell_price[0]-op_sell_price)}\n')
+                        f'{i}. Sell Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur sell price is not matching with the dropcopy sell price\ndropcopy_sell_price:{drop_sell_price[0]}, our_sell_price:{op_sell_price}, difference:{round(abs(drop_sell_price[0]-op_sell_price),2)}\n')
                     flag = False
 
                 if abs(op_buy_price - drop_buy_price) >= 1:
                     i += 1
                     print(
-                        f'{i}. Buy Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur buy price is not matching with the dropcopy buy price\ndropcopy_buy_price:{drop_buy_price[0]}, our_buy_price:{op_buy_price}, difference:{abs(drop_buy_price[0]-op_buy_price)}\n')
+                        f'{i}. Buy Price Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur buy price is not matching with the dropcopy buy price\ndropcopy_buy_price:{drop_buy_price[0]}, our_buy_price:{op_buy_price}, difference:{round(abs(drop_buy_price[0]-op_buy_price),2)}\n')
                     flag = False
 
                 if op_buy_qty != drop_buy_qty:
                     i += 1
                     print(
-                        f'{i}. Buy Quantity Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur buy qty is not matching with the dropcopy buy qty\ndropcopy_buy_qty:{drop_buy_qty}, our_buy_qty:{op_buy_qty}, difference:{abs(drop_buy_qty-op_buy_qty)}\n')
+                        f'{i}. Buy Quantity Mismatch: {symbol}, {expiry.date()}, {opttype}, {each_strike}\nOur buy qty is not matching with the dropcopy buy qty\ndropcopy_buy_qty:{drop_buy_qty}, our_buy_qty:{op_buy_qty}, difference:{round(abs(drop_buy_qty-op_buy_qty),2)}\n')
                     flag = False
             else:
                 temp_op_df = filtered_df.query(
