@@ -28,11 +28,21 @@ key_list = list(endpoint_filename_server_dict.keys())
 
 backup_main_url = 'http://172.16.47.87:5000/download/'
 team_url = 'http://172.16.47.87:5001/download/'
-for_server = ['backup','main_demo','team']
+for_server = ['backup','main_demo','team','algo2']
 route_dict = {
-    'dropcopy':['backup','main','team'],
-    'file_downloader':[{'backup':backup_main_url+'backup', 'main':backup_main_url + 'main_dev', 'team':team_url + 'team'}],
-    'api':[{'backup':rf"W:\Options & Futures Data\QI_Trades\API\backup.csv",'main':rf"W:\Options & Futures Data\QI_Trades\API\main_demo.csv",'team':rf"W:\Options & Futures Data\QI_Trades\API\team.csv"}]
+    'dropcopy':['backup','main','team','algo2'],
+    'file_downloader':[{
+        'backup':backup_main_url+ 'backup',
+        'main':backup_main_url + 'main_dev',
+        'team':team_url + 'team',
+        'algo2':backup_main_url + 'algo2_pos'
+    }],
+    'api':[{
+        'backup':rf"D:\trade_file_analysis\API\backup.csv",
+        'main':rf"D:\trade_file_analysis\API\main_demo.csv",
+        'team':rf"D:\trade_file_analysis\API\team.csv",
+        'algo2':rf"D:\trade_file_analysis\API\algo2_pos.csv"
+    }]
 }
 
 def convert_to_timestamp(date_input):
@@ -52,6 +62,7 @@ def convert_to_timestamp(date_input):
 for each_server in route_dict['dropcopy']:
     print(f'\nServer: {each_server.upper()}')
     drop_pattern = rf'dropcopy_({each_server.lower()}|{each_server.upper()}|{each_server.capitalize()})_positions_{today.strftime("%Y%m%d")}_\d{{6}}\.xlsx'  # sample = dropcopy_positions_20241107_165710
+    # algo2 sample = dropcopy_algo2_positions_20250702_165710
     drop_matched_files = [f for f in os.listdir(their_file_path) if re.match(drop_pattern, f)]
     df_drop = pd.DataFrame()
     for each_file in drop_matched_files:
