@@ -28,20 +28,22 @@ key_list = list(endpoint_filename_server_dict.keys())
 
 backup_main_url = 'http://172.16.47.87:5000/download/'
 team_url = 'http://172.16.47.87:5001/download/'
-for_server = ['backup','main_demo','team','algo2']
+for_server = ['backup','main_demo','team','algo2','algo3_pos_dc']
 route_dict = {
-    'dropcopy':['backup','main','team','algo2'],
+    'dropcopy':['backup','main','team','algo2','algo3_pos_dc'],
     'file_downloader':[{
         'backup':backup_main_url+ 'backup',
         'main':backup_main_url + 'main_dev',
         'team':team_url + 'team',
-        'algo2':backup_main_url + 'algo2_pos'
+        'algo2':backup_main_url + 'algo2_pos',
+        'algo3_pos_dc':backup_main_url + 'algo3_pos_dc'
     }],
     'api':[{
         'backup':rf"D:\trade_file_analysis\API\backup.csv",
         'main':rf"D:\trade_file_analysis\API\main_demo.csv",
         'team':rf"D:\trade_file_analysis\API\team.csv",
-        'algo2':rf"D:\trade_file_analysis\API\algo2_pos.csv"
+        'algo2':rf"D:\trade_file_analysis\API\algo2_pos.csv",
+        'algo3_pos_dc':rf"D:\trade_file_analysis\API\algo3_pos_dc.csv"
     }]
 }
 
@@ -60,10 +62,20 @@ def convert_to_timestamp(date_input):
 
 
 for each_server in route_dict['dropcopy']:
-    print(f'\nServer: {each_server.upper()}')
-    drop_pattern = rf'dropcopy_({each_server.lower()}|{each_server.upper()}|{each_server.capitalize()})_positions_{today.strftime("%Y%m%d")}_\d{{6}}\.xlsx'  # sample = dropcopy_positions_20241107_165710
+    if each_server == 'algo2':
+        # each_server = 'Colo 68 : BSE'
+        print(f"\nServer: {'Colo 68 : BSE'.upper()}")
+    elif each_server == 'algo3_pos_dc':
+        # each_server = 'Colo 66 : NSE'
+        print(f"\nServer: {'Colo 66 : NSE'.upper()}")
+    else:
+        print(f'\nServer: {each_server.upper()}')
+    drop_pattern = rf'dropcopy_({each_server.lower()}|{each_server.upper()}|{each_server.capitalize()})_positions_{today.strftime("%Y%m%d")}_\d{{6}}\.xlsx'
+    # sample = dropcopy_positions_20241107_165710
     # algo2 sample = dropcopy_algo2_positions_20250702_165710
+    # algo3_pos_dc sample = dropcopy_algo3_pos_dc_positions_20250715_16510
     drop_matched_files = [f for f in os.listdir(their_file_path) if re.match(drop_pattern, f)]
+
     df_drop = pd.DataFrame()
     for each_file in drop_matched_files:
         temp_df = pd.read_excel(os.path.join(their_file_path, each_file), index_col=False)
@@ -76,7 +88,7 @@ for each_server in route_dict['dropcopy']:
     df_api['Expiry'] = df_api['Expiry'].apply(convert_to_timestamp)  # sample=06-03-2025
     # print(df_api.head())
 
-    df_file_downloader = pd.DataFrame
+    df_file_downloader = pd.DataFrame()
     resp = requests.get(rf"{route_dict['file_downloader'][0][each_server]}")
     if resp.status_code != 200:
         if len(df_api) == len(df_drop) == 0:
