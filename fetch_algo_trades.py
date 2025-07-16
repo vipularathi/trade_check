@@ -5,7 +5,7 @@ import numpy as np
 
 root_dir = os.getcwd()
 their_file_path = os.path.join(root_dir, 'Their_file')
-
+our_file_path = os.path.join(root_dir,'Our_file')
 # server_ip = "192.168.50.68"
 # adminusername = "user3_rms"
 # adminpassword = "user3_rms"
@@ -97,6 +97,8 @@ if __name__ == "__main__":
         algo2_df.rename(columns={'strikePrice':'StrikePrice','sellQty':'SellQty'}, inplace=True)
         algo2_df.to_excel(os.path.join(their_file_path, rf'dropcopy_algo2_positions_'
                                                     rf'{datetime.today().date().strftime("%Y%m%d")}_165710.xlsx'))
+        algo2_df.to_csv(os.path.join(our_file_path, rf'net_positions_algo2_positions_'
+                                                    rf'{datetime.today().date().strftime("%Y%m%d")}.csv'))
         print('Algo2 trades fetched.')
     else:
         print('No Algo2 trades.')
@@ -110,6 +112,8 @@ if __name__ == "__main__":
         algo3_df.drop(columns=[col for col in algo3_df.columns if col not in col_keep], inplace=True)
         algo3_df.to_excel(os.path.join(their_file_path, rf'dropcopy_algo3_pos_dc_positions_'
                                                         rf'{datetime.today().date().strftime("%Y%m%d")}_165710.xlsx'))
+        algo3_df.to_csv(os.path.join(our_file_path, rf'net_positions_algo3_pos_dc_'
+                                                        rf'{datetime.today().date().strftime("%Y%m%d")}.csv'))
         print('Algo3 trades fetched.')
     else:
         print('No Algo3 trades.')

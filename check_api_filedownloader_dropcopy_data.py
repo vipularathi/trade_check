@@ -82,23 +82,31 @@ for each_server in route_dict['dropcopy']:
         df_drop = pd.concat([df_drop, temp_df])
         df_drop = df_drop.iloc[:, 1:]
         df_drop['Expiry'] = df_drop['Expiry'].apply(convert_to_timestamp)  # sample=2025February27th
-        # print(df_drop.head())
 
     df_api = pd.read_csv(rf"{route_dict['api'][0][each_server]}", index_col=False)
     df_api['Expiry'] = df_api['Expiry'].apply(convert_to_timestamp)  # sample=06-03-2025
-    # print(df_api.head())
 
     df_file_downloader = pd.DataFrame()
     resp = requests.get(rf"{route_dict['file_downloader'][0][each_server]}")
     if resp.status_code != 200:
         if len(df_api) == len(df_drop) == 0:
-            print(f'No trade found for {each_server}\n')
+            if each_server == 'algo2':
+                print(f"No trade found for {'Colo 68 : BSE'.upper()}")
+            elif each_server == 'algo3_pos_dc':
+                print(f"No trade found for {'Colo 66 : NSE'.upper()}")
+            else:
+                print(f'No trade found for {each_server}\n')
             continue
     df_file_downloader = pd.read_csv(rf"{route_dict['file_downloader'][0][each_server]}", index_col=False)
     df_file_downloader.Expiry = df_file_downloader.Expiry.apply(convert_to_timestamp)
 
     if len(df_drop) == len(df_api) == len(df_file_downloader) == 0:
-        print(f'No trades found for server: {each_server}\n')
+        if each_server == 'algo2':
+            print(f"No trade found for {'Colo 68 : BSE'.upper()}")
+        elif each_server == 'algo3_pos_dc':
+            print(f"No trade found for {'Colo 66 : NSE'.upper()}")
+        else:
+            print(f'No trade found for {each_server}\n')
         no_trade = True
         continue
     for cntr in range(2):
@@ -222,5 +230,9 @@ for each_server in route_dict['dropcopy']:
             if not missing_trade and not no_trade:
                 print(f'No mismatch between the {for_print} and API file\n')
             elif not no_trade:
+                if each_server == 'algo2':
+                    each_server = 'Colo 68 : BSE'.upper()
+                elif each_server == 'algo3_pos_dc':
+                    each_server = 'Colo 66 : NSE'.upper()
                 print(
                     f'For rest of the trades in {each_server}, No mismatch between the {for_print} and API file\n')
