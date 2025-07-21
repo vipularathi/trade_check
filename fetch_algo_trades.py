@@ -65,7 +65,7 @@ def get_algo2_trades():
         return pd.DataFrame()
 
 def get_algo3_trades():
-    url = f'http://172.16.47.56:8066/net_position_calc'
+    url = f'http://172.16.47.56:8035/net_position_calc'
     payload = json.dumps({
         "pagination": {
             "current": 1,
@@ -84,7 +84,6 @@ def get_algo3_trades():
         'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36'
     }
     resp = requests.post(url=url,headers=headers, data=payload)
-    # resp = requests.post(url=url,)
     if resp.status_code == 200:
         response = resp.json()
         data = response['data']
@@ -97,7 +96,7 @@ if __name__ == "__main__":
         algo2_df.rename(columns={'strikePrice':'StrikePrice','sellQty':'SellQty'}, inplace=True)
         algo2_df.to_excel(os.path.join(their_file_path, rf'dropcopy_algo2_positions_'
                                                     rf'{datetime.today().date().strftime("%Y%m%d")}_165710.xlsx'))
-        algo2_df.to_csv(os.path.join(our_file_path, rf'net_positions_algo2_positions_'
+        algo2_df.to_csv(os.path.join(our_file_path, rf'net_positions_algo2_'
                                                     rf'{datetime.today().date().strftime("%Y%m%d")}.csv'))
         print('Algo2 trades fetched.')
     else:

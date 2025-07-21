@@ -1,24 +1,24 @@
-import requests
-import os
+import requests, os, warnings
 import pandas as pd
-import warnings
+import numpy as np
 from datetime import datetime, timedelta, date
 from prettytable import PrettyTable
 
 pd.set_option('display.float_format', lambda a:'%.2f' %a)
 warnings.filterwarnings("ignore")
 root_dir = os.getcwd()
-combined_dir = os.path.join(root_dir,'Combined_files')
-os.makedirs(combined_dir, exist_ok=True)
+test_dir = os.path.join(root_dir,'testing')
 
 base_url = 'http://172.16.47.87:5000/download/'
 endpoint_filename_server_dict = {
-    'combined_net':['combined_net_position.csv','','COMBINED_NETPOSITION'],
-    'nest_nse_net':['nse_nest_net_position.csv','Nest-TradeHist','NSE_Nest_Netposition'],
-    'nest_bse_net':['bse_nest_net_position.csv','BSE_trades','BSE_Nest_Netposition'],
-    'Inhouse_algo':['inhouse_algo_net_position.csv','Inhouse_algo','Inhouse_Algo_Netposition'],
-    'main_dev':['main_net_position.csv','Algo_main_demo','Main_Netposition'],
-    'backup':['backup_net_position.csv','Algo_backup','Backup_Netposition']
+    # end-point : [filename.ext, Source1, NameToPrint] # filename is not being used #take files outside API folder
+    'combined_net':['combined.csv','','COMBINED_NETPOSITION'],
+    'nest_nse_net':['nse_nest.csv','Nest-TradeHist','NSE_Nest_Netposition'],
+    'nest_bse_net':['bse_nest.csv','BSE_trades','BSE_Nest_Netposition'],
+    'main_dev':['main_demo.csv','Algo_main_demo','Main_Netposition'],
+    'backup':['backup.csv','Algo_backup','Backup_Netposition'],
+    'algo2_pos':['algo2_pos.csv','Inhouse_algo_2','Algo2(BSE)_Netposition'],
+    'algo3_pos_dc':['algo3_pos_dc.csv','Inhouse_algo_3','Algo3(NSE)_Netposition']
 }
 key_list = list(endpoint_filename_server_dict.keys())
 
@@ -34,6 +34,17 @@ def convert_to_timestamp(date_input):
             except ValueError:
                 continue
     return pd.NaT
+
+def consolidate_data(df):
+    df['BuyValue'] = df['BuyQty'] * df['BuyPrice']
+    df['SellValue'] = df['SellQty'] * df['SellPrice']
+    grouped_df = df.groupby(by=['Symbol', 'Expiry', 'StrikePrice', 'InstType'], as_index=False).agg(
+        {'BuyQty':'sum','BuyValue':'sum','SellQty':'sum','SellValue':'sum','NetQty':'sum'}
+    )
+    grouped_df['BuyPrice'] = grouped_df.apply(lambda x: x['BuyValue']/x['BuyQty'] if x['BuyQty'] > 0 else 0, axis=1)
+    grouped_df['SellPrice'] = np.where(grouped_df['SellQty'] > 0, grouped_df['SellValue']/grouped_df['SellQty'], 0)
+    grouped_df.drop(columns=['BuyValue','SellValue'], inplace=True)
+    return grouped_df
 
 print('\n')
 print(f'File: COMBINED NET POSITION')
@@ -82,6 +93,9 @@ for each in key_list[1:]:
     else:
         filtered_df = df_each.copy()
         use = 'extract'
+    if not df_extract.empty and not filtered_df.empty:
+        filtered_df = consolidate_data(filtered_df)
+        
     df_combined.drop(df_combined.query("Source1 == @source1").index, inplace=True)
     # drop=extract,         output=each
 

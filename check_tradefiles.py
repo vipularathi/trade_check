@@ -1,9 +1,7 @@
 import pandas as pd
-import re
-import os
-import glob
+import re, os, glob, warnings
 from datetime import datetime
-import warnings
+import numpy as np
 
 warnings.filterwarnings("ignore", category=pd.errors.SettingWithCopyWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*truth value of an empty array is ambiguous.*")
@@ -32,7 +30,7 @@ def convert_to_timestamp(date_str):
     format_list = ['%Y%B%d','%Y%b%d','%d%b%Y','%d%b%Y']
     for each_format in format_list:
         try:
-            return pd.to_datetime(date_str, format=each_format).date()
+            return pd.to_datetime(date_str, format=each_format)
         except ValueError:
             continue
     return pd.NaT
@@ -138,6 +136,30 @@ for each_server in server_list:
         df_our = pd.concat([df_our, temp_df])
         df_our.drop(columns=[col for col in df_our.columns if col not in col_keep], inplace=True)
         df_our['Expiry'] = df_our['Expiry'].apply(convert_to_timestamp)  # sample=2025February27th
+    # =======================================================================================================
+    if each_server in ['algo2','algo3_pos_dc']:
+        temp_api_df = df_our.copy()
+        temp_api_df['BuyValue'] = temp_api_df['BuyQty'] * temp_api_df['BuyPrice']
+        temp_api_df['SellValue'] = temp_api_df['SellQty'] * temp_api_df['SellPrice']
+        grouped_temp_df = temp_api_df.groupby(by=['Symbol', 'Expiry', 'StrikePrice', 'InstType'], as_index=False).agg(
+            {'BuyQty':'sum','SellQty':'sum','NetQty':'sum','BuyValue':'sum','SellValue':'sum'}
+        )
+        grouped_temp_df['BuyPrice'] = grouped_temp_df.apply(lambda x: x['BuyValue']/x['BuyQty'] if x['BuyQty'] > 0
+        else 0, axis=1)
+        grouped_temp_df['SellPrice'] = np.where(grouped_temp_df['SellQty'] > 0, grouped_temp_df[
+            'SellValue']/grouped_temp_df['SellQty'], 0)
+        df_our = grouped_temp_df.copy()
+        temp_file_downloader_df = df_drop.copy()
+        temp_file_downloader_df['BuyValue'] = temp_file_downloader_df['BuyQty'] * temp_file_downloader_df['BuyPrice']
+        temp_file_downloader_df['SellValue'] = temp_file_downloader_df['SellQty'] * temp_file_downloader_df['SellPrice']
+        grouped_temp_df = temp_file_downloader_df.groupby(by=['Symbol', 'Expiry', 'StrikePrice', 'InstType'], as_index=False).agg(
+            {'BuyQty': 'sum', 'SellQty': 'sum', 'NetQty': 'sum', 'BuyValue': 'sum', 'SellValue': 'sum'}
+        )
+        grouped_temp_df['BuyPrice'] = grouped_temp_df.apply(lambda x: x['BuyValue'] / x['BuyQty'] if x['BuyQty'] > 0
+        else 0, axis=1)
+        grouped_temp_df['SellPrice'] = np.where(grouped_temp_df['SellQty'] > 0, grouped_temp_df[
+            'SellValue'] / grouped_temp_df['SellQty'], 0)
+        df_drop = grouped_temp_df.copy()
     # =======================================================================================================
     filtered_df = pd.DataFrame()
 

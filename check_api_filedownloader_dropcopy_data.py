@@ -1,10 +1,8 @@
-import requests
-import os
+import requests, os, re, warnings
 import pandas as pd
-import warnings
+import numpy as np
 from datetime import datetime, timedelta, date
 from prettytable import PrettyTable
-import re
 
 pd.set_option('display.float_format', lambda a:'%.2f' %a)
 warnings.filterwarnings("ignore")
@@ -61,13 +59,14 @@ def convert_to_timestamp(date_input):
     return pd.NaT
 
 
+new_server_dict = {
+    'algo2': 'Colo 68 : BSE',
+    'algo3_pos_dc': 'Colo 66 : NSE'
+}
+
 for each_server in route_dict['dropcopy']:
-    if each_server == 'algo2':
-        # each_server = 'Colo 68 : BSE'
-        print(f"\nServer: {'Colo 68 : BSE'.upper()}")
-    elif each_server == 'algo3_pos_dc':
-        # each_server = 'Colo 66 : NSE'
-        print(f"\nServer: {'Colo 66 : NSE'.upper()}")
+    if each_server in new_server_dict.keys():
+        print(f"\nServer: {new_server_dict.get(each_server).upper()}")
     else:
         print(f'\nServer: {each_server.upper()}')
     drop_pattern = rf'dropcopy_({each_server.lower()}|{each_server.upper()}|{each_server.capitalize()})_positions_{today.strftime("%Y%m%d")}_\d{{6}}\.xlsx'
@@ -90,10 +89,8 @@ for each_server in route_dict['dropcopy']:
     resp = requests.get(rf"{route_dict['file_downloader'][0][each_server]}")
     if resp.status_code != 200:
         if len(df_api) == len(df_drop) == 0:
-            if each_server == 'algo2':
-                print(f"No trade found for {'Colo 68 : BSE'.upper()}")
-            elif each_server == 'algo3_pos_dc':
-                print(f"No trade found for {'Colo 66 : NSE'.upper()}")
+            if each_server in new_server_dict.keys():
+                print(f"No trade found for {new_server_dict.get(each_server).upper()}")
             else:
                 print(f'No trade found for {each_server}\n')
             continue
@@ -101,14 +98,59 @@ for each_server in route_dict['dropcopy']:
     df_file_downloader.Expiry = df_file_downloader.Expiry.apply(convert_to_timestamp)
 
     if len(df_drop) == len(df_api) == len(df_file_downloader) == 0:
-        if each_server == 'algo2':
-            print(f"No trade found for {'Colo 68 : BSE'.upper()}")
-        elif each_server == 'algo3_pos_dc':
-            print(f"No trade found for {'Colo 66 : NSE'.upper()}")
+        if each_server in new_server_dict.keys():
+            print(f"No trade found for {new_server_dict.get(each_server).upper()}")
         else:
             print(f'No trade found for {each_server}\n')
         no_trade = True
         continue
+    elif len(df_drop) == 0 and len(df_api) and len(df_file_downloader):
+        if each_server in new_server_dict.keys():
+            print(f"dropcopy for {new_server_dict.get(each_server).upper()} is empty while data is there in API and "
+                  f"file_downloader, hence skipping check.")
+        else:
+            print(f'dropcopy for {each_server} is empty while data is there in API and file_downloader, hence skipping '
+              f'check.')
+        continue
+    elif len(df_api) == 0 and len(df_drop) and len(df_file_downloader):
+        if each_server in new_server_dict.keys():
+            print(f"API for {new_server_dict.get(each_server).upper()} is empty while data is there in dropcopy and "
+                  f"file_downloader, hence skipping check.")
+        else:
+            print(f'API for {each_server} is empty while data is there in dropcopy and file_downloader, hence skipping '
+              f'check.')
+        continue
+    elif len(df_file_downloader) == 0 and len(df_api) and len(df_drop):
+        if each_server in new_server_dict.keys():
+            print(f"File Downloader for {new_server_dict.get(each_server).upper()} is empty while data is there in dropcopy "
+                  f"and API, hence skipping check.")
+        else:
+            print(f'File Downloader for {each_server} is empty while data is there in dropcopy and API, '
+              f'hence skipping check.')
+        continue
+    if each_server in ['algo2','algo3_pos_dc']:
+        temp_api_df = df_api.copy()
+        temp_api_df['BuyValue'] = temp_api_df['BuyQty'] * temp_api_df['BuyPrice']
+        temp_api_df['SellValue'] = temp_api_df['SellQty'] * temp_api_df['SellPrice']
+        grouped_temp_df = temp_api_df.groupby(by=['Symbol', 'Expiry', 'StrikePrice', 'InstType'], as_index=False).agg(
+            {'BuyQty':'sum','SellQty':'sum','NetQty':'sum','BuyValue':'sum','SellValue':'sum'}
+        )
+        grouped_temp_df['BuyPrice'] = grouped_temp_df.apply(lambda x: x['BuyValue']/x['BuyQty'] if x['BuyQty'] > 0
+        else 0, axis=1)
+        grouped_temp_df['SellPrice'] = np.where(grouped_temp_df['SellQty'] > 0, grouped_temp_df[
+            'SellValue']/grouped_temp_df['SellQty'], 0)
+        df_api = grouped_temp_df.copy()
+        temp_file_downloader_df = df_file_downloader.copy()
+        temp_file_downloader_df['BuyValue'] = temp_file_downloader_df['BuyQty'] * temp_file_downloader_df['BuyPrice']
+        temp_file_downloader_df['SellValue'] = temp_file_downloader_df['SellQty'] * temp_file_downloader_df['SellPrice']
+        grouped_temp_df = temp_file_downloader_df.groupby(by=['Symbol', 'Expiry', 'StrikePrice', 'InstType'], as_index=False).agg(
+            {'BuyQty': 'sum', 'SellQty': 'sum', 'NetQty': 'sum', 'BuyValue': 'sum', 'SellValue': 'sum'}
+        )
+        grouped_temp_df['BuyPrice'] = grouped_temp_df.apply(lambda x: x['BuyValue'] / x['BuyQty'] if x['BuyQty'] > 0
+        else 0, axis=1)
+        grouped_temp_df['SellPrice'] = np.where(grouped_temp_df['SellQty'] > 0, grouped_temp_df[
+            'SellValue'] / grouped_temp_df['SellQty'], 0)
+        df_file_downloader = grouped_temp_df.copy()
     for cntr in range(2):
         if cntr == 0:
             i = 0
@@ -230,9 +272,7 @@ for each_server in route_dict['dropcopy']:
             if not missing_trade and not no_trade:
                 print(f'No mismatch between the {for_print} and API file\n')
             elif not no_trade:
-                if each_server == 'algo2':
-                    each_server = 'Colo 68 : BSE'.upper()
-                elif each_server == 'algo3_pos_dc':
-                    each_server = 'Colo 66 : NSE'.upper()
+                if each_server in new_server_dict.keys():
+                    each_server = new_server_dict.get(each_server).upper()
                 print(
                     f'For rest of the trades in {each_server}, No mismatch between the {for_print} and API file\n')
