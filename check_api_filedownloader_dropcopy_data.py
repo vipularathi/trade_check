@@ -3,7 +3,10 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta, date
 from prettytable import PrettyTable
+from io import StringIO
 
+# os.environ['HTTP_PROXY'] = ''
+# os.environ['HTTPS_PROXY'] = ''
 pd.set_option('display.float_format', lambda a:'%.2f' %a)
 warnings.filterwarnings("ignore")
 root_dir = os.getcwd()
@@ -12,9 +15,11 @@ os.makedirs(combined_dir, exist_ok=True)
 today = datetime.now().date()
 
 their_file_path = os.path.join(root_dir, 'Their_file')
-
+proxies = {"http": None, "https": None}
 base_url = 'http://172.16.47.87:5000/download/'
+proxies = {'http':None,'https':None}
 endpoint_filename_server_dict = {
+    # end-point : [filename.ext, Source1, NameToPrint] # filename is not being used #take files outside API folder
     'combined_net':['combined_net_position.csv','','COMBINED_NETPOSITION'],
     'nest_nse_net':['nse_nest_net_position.csv','Nest-TradeHist','NSE_Nest_Netposition'],
     'nest_bse_net':['bse_nest_net_position.csv','BSE_trades','BSE_Nest_Netposition'],
@@ -26,22 +31,22 @@ key_list = list(endpoint_filename_server_dict.keys())
 
 backup_main_url = 'http://172.16.47.87:5000/download/'
 team_url = 'http://172.16.47.87:5001/download/'
-for_server = ['backup','main_demo','team','algo2','algo3_pos_dc']
+for_server = ['backup','main_demo','team','algo2','algo41_pos_dc']
 route_dict = {
-    'dropcopy':['backup','main','team','algo2','algo3_pos_dc'],
+    'dropcopy':['backup','main','team','algo2','algo41_pos_dc'],
     'file_downloader':[{
         'backup':backup_main_url+ 'backup',
         'main':backup_main_url + 'main_dev',
         'team':team_url + 'team',
         'algo2':backup_main_url + 'algo2_pos',
-        'algo3_pos_dc':backup_main_url + 'algo3_pos_dc'
+        'algo41_pos_dc':backup_main_url + 'algo41_pos_dc'
     }],
     'api':[{
-        'backup':rf"D:\trade_file_analysis\API\backup.csv",
-        'main':rf"D:\trade_file_analysis\API\main_demo.csv",
-        'team':rf"D:\trade_file_analysis\API\team.csv",
-        'algo2':rf"D:\trade_file_analysis\API\algo2_pos.csv",
-        'algo3_pos_dc':rf"D:\trade_file_analysis\API\algo3_pos_dc.csv"
+        'backup':rf"D:\trade_file_analysis\QI_files\API\backup.csv",
+        'main':rf"D:\trade_file_analysis\QI_files\API\main_demo.csv",
+        'team':rf"D:\trade_file_analysis\QI_files\API\team.csv",
+        'algo2':rf"D:\trade_file_analysis\QI_files\API\algo2_pos.csv",
+        'algo41_pos_dc':rf"D:\trade_file_analysis\QI_files\API\algo41_pos_dc.csv"
     }]
 }
 
@@ -50,7 +55,7 @@ def convert_to_timestamp(date_input):
         return date_input
     if isinstance(date_input, str):
         date_str = date_input.replace('st', '').replace('nd', '').replace('rd', '').replace('th', '').replace(' ','')
-        date_format = ['%Y%B%d', '%Y-%m-%d', '%d-%m-%Y']
+        date_format = ['%Y%B%d', '%Y-%m-%d', '%d-%m-%Y','%d%b%Y']
         for each in date_format:
             try:
                 return pd.to_datetime(date_str, format=each).date()
@@ -58,10 +63,9 @@ def convert_to_timestamp(date_input):
                 continue
     return pd.NaT
 
-
 new_server_dict = {
     'algo2': 'Colo 68 : BSE',
-    'algo3_pos_dc': 'Colo 66 : NSE'
+    'algo41_pos_dc': 'Colo 41 : NSE'
 }
 
 for each_server in route_dict['dropcopy']:
@@ -72,7 +76,7 @@ for each_server in route_dict['dropcopy']:
     drop_pattern = rf'dropcopy_({each_server.lower()}|{each_server.upper()}|{each_server.capitalize()})_positions_{today.strftime("%Y%m%d")}_\d{{6}}\.xlsx'
     # sample = dropcopy_positions_20241107_165710
     # algo2 sample = dropcopy_algo2_positions_20250702_165710
-    # algo3_pos_dc sample = dropcopy_algo3_pos_dc_positions_20250715_16510
+    # algo41_pos_dc sample = dropcopy_algo41_pos_dc_positions_20250715_16510
     drop_matched_files = [f for f in os.listdir(their_file_path) if re.match(drop_pattern, f)]
 
     df_drop = pd.DataFrame()
@@ -86,7 +90,7 @@ for each_server in route_dict['dropcopy']:
     df_api['Expiry'] = df_api['Expiry'].apply(convert_to_timestamp)  # sample=06-03-2025
 
     df_file_downloader = pd.DataFrame()
-    resp = requests.get(rf"{route_dict['file_downloader'][0][each_server]}")
+    resp = requests.get(url=rf"{route_dict['file_downloader'][0][each_server]}", proxies=proxies)
     if resp.status_code != 200:
         if len(df_api) == len(df_drop) == 0:
             if each_server in new_server_dict.keys():
@@ -94,7 +98,8 @@ for each_server in route_dict['dropcopy']:
             else:
                 print(f'No trade found for {each_server}\n')
             continue
-    df_file_downloader = pd.read_csv(rf"{route_dict['file_downloader'][0][each_server]}", index_col=False)
+    df_file_downloader = pd.read_csv(StringIO(resp.text))
+    # df_file_downloader = pd.read_csv(rf"{route_dict['file_downloader'][0][each_server]}", index_col=False)
     df_file_downloader.Expiry = df_file_downloader.Expiry.apply(convert_to_timestamp)
 
     if len(df_drop) == len(df_api) == len(df_file_downloader) == 0:
@@ -128,7 +133,7 @@ for each_server in route_dict['dropcopy']:
             print(f'File Downloader for {each_server} is empty while data is there in dropcopy and API, '
               f'hence skipping check.')
         continue
-    if each_server in ['algo2','algo3_pos_dc']:
+    if each_server in ['algo2','algo41_pos_dc']:
         temp_api_df = df_api.copy()
         temp_api_df['BuyValue'] = temp_api_df['BuyQty'] * temp_api_df['BuyPrice']
         temp_api_df['SellValue'] = temp_api_df['SellQty'] * temp_api_df['SellPrice']
