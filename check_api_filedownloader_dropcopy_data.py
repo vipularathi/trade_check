@@ -8,10 +8,12 @@ from io import StringIO
 # os.environ['HTTP_PROXY'] = ''
 # os.environ['HTTPS_PROXY'] = ''
 pd.set_option('display.float_format', lambda a:'%.2f' %a)
+pd.set_option('display.max_columns', None)
 warnings.filterwarnings("ignore")
 root_dir = os.getcwd()
 combined_dir = os.path.join(root_dir,'Combined_files')
 os.makedirs(combined_dir, exist_ok=True)
+test_dir = os.path.join(root_dir,f'testing')
 today = datetime.now().date()
 
 their_file_path = os.path.join(root_dir, 'Their_file')
@@ -31,22 +33,26 @@ key_list = list(endpoint_filename_server_dict.keys())
 
 backup_main_url = 'http://172.16.47.87:5000/download/'
 team_url = 'http://172.16.47.87:5001/download/'
-for_server = ['backup','main_demo','team','algo2','algo41_pos_dc']
+for_server = ['backup','main_demo','team','algo2','algo41_pos_dc','algo81_pos_dc','algo82_pos_dc']
 route_dict = {
-    'dropcopy':['backup','main','team','algo2','algo41_pos_dc'],
+    'dropcopy':['backup','main','team','algo2','algo41_pos_dc','algo81_pos_dc','algo82_pos_dc'],
     'file_downloader':[{
         'backup':backup_main_url+ 'backup',
         'main':backup_main_url + 'main_dev',
         'team':team_url + 'team',
         'algo2':backup_main_url + 'algo2_pos',
-        'algo41_pos_dc':backup_main_url + 'algo41_pos_dc'
+        'algo41_pos_dc':backup_main_url + 'algo41_pos_dc',
+        'algo81_pos_dc':backup_main_url + 'algo81_pos_dc',
+        'algo82_pos_dc':backup_main_url + 'algo82_pos_dc'
     }],
     'api':[{
         'backup':rf"D:\trade_file_analysis\QI_files\API\backup.csv",
         'main':rf"D:\trade_file_analysis\QI_files\API\main_demo.csv",
         'team':rf"D:\trade_file_analysis\QI_files\API\team.csv",
         'algo2':rf"D:\trade_file_analysis\QI_files\API\algo2_pos.csv",
-        'algo41_pos_dc':rf"D:\trade_file_analysis\QI_files\API\algo41_pos_dc.csv"
+        'algo41_pos_dc':rf"D:\trade_file_analysis\QI_files\API\algo41_pos_dc.csv",
+        'algo81_pos_dc':rf"D:\trade_file_analysis\QI_files\API\algo81_pos_dc.csv",
+        'algo82_pos_dc':rf"D:\trade_file_analysis\QI_files\API\algo82_pos_dc.csv"
     }]
 }
 
@@ -55,17 +61,19 @@ def convert_to_timestamp(date_input):
         return date_input
     if isinstance(date_input, str):
         date_str = date_input.replace('st', '').replace('nd', '').replace('rd', '').replace('th', '').replace(' ','')
-        date_format = ['%Y%B%d', '%Y-%m-%d', '%d-%m-%Y','%d%b%Y']
+        date_format = ['%Y%B%d', '%Y-%m-%d', '%d-%m-%Y', '%d%b%Y']
         for each in date_format:
             try:
-                return pd.to_datetime(date_str, format=each).date()
+                return datetime.strptime(date_str, each).date()
             except ValueError:
                 continue
     return pd.NaT
 
 new_server_dict = {
     'algo2': 'Colo 68 : BSE',
-    'algo41_pos_dc': 'Colo 41 : NSE'
+    'algo41_pos_dc': 'Colo 41 : NSE',
+    'algo81_pos_dc': 'Colo 81 : BSE',
+    'algo82_pos_dc': 'Colo 82 : NSE'
 }
 
 for each_server in route_dict['dropcopy']:
@@ -85,9 +93,11 @@ for each_server in route_dict['dropcopy']:
         df_drop = pd.concat([df_drop, temp_df])
         df_drop = df_drop.iloc[:, 1:]
         df_drop['Expiry'] = df_drop['Expiry'].apply(convert_to_timestamp)  # sample=2025February27th
+        df_drop['Expiry'] = pd.to_datetime(df_drop['Expiry'], dayfirst=True).dt.date
 
     df_api = pd.read_csv(rf"{route_dict['api'][0][each_server]}", index_col=False)
     df_api['Expiry'] = df_api['Expiry'].apply(convert_to_timestamp)  # sample=06-03-2025
+    df_api['Expiry'] = pd.to_datetime(df_api['Expiry'], dayfirst=True).dt.date
 
     df_file_downloader = pd.DataFrame()
     resp = requests.get(url=rf"{route_dict['file_downloader'][0][each_server]}", proxies=proxies)
@@ -101,6 +111,7 @@ for each_server in route_dict['dropcopy']:
     df_file_downloader = pd.read_csv(StringIO(resp.text))
     # df_file_downloader = pd.read_csv(rf"{route_dict['file_downloader'][0][each_server]}", index_col=False)
     df_file_downloader.Expiry = df_file_downloader.Expiry.apply(convert_to_timestamp)
+    df_file_downloader['Expiry'] = pd.to_datetime(df_file_downloader['Expiry'], dayfirst=True).dt.date
 
     if len(df_drop) == len(df_api) == len(df_file_downloader) == 0:
         if each_server in new_server_dict.keys():
@@ -133,29 +144,58 @@ for each_server in route_dict['dropcopy']:
             print(f'File Downloader for {each_server} is empty while data is there in dropcopy and API, '
               f'hence skipping check.')
         continue
-    if each_server in ['algo2','algo41_pos_dc']:
+    if each_server in ['algo2','algo41_pos_dc','algo81_pos_dc','algo82_pos_dc']:
+        temp_drop_df = df_drop.copy()
+        temp_drop_df['BuyValue'] = temp_drop_df['BuyQty'] * temp_drop_df['BuyPrice']
+        temp_drop_df['SellValue'] = temp_drop_df['SellQty'] * temp_drop_df['SellPrice']
+        grouped_temp_df = temp_drop_df.groupby(
+            by=['Symbol', 'Expiry', 'StrikePrice', 'InstType'], as_index=False).agg(
+            {'BuyQty': 'sum', 'SellQty': 'sum', 'NetQty': 'sum', 'BuyValue': 'sum', 'SellValue': 'sum'}
+        )
+        grouped_temp_df['BuyPrice'] = grouped_temp_df.apply(
+            lambda x: x['BuyValue'] / x['BuyQty'] if x['BuyQty'] > 0 else 0, axis=1
+        )
+        grouped_temp_df['SellPrice'] = np.where(grouped_temp_df['SellQty'] > 0, grouped_temp_df[
+            'SellValue'] / grouped_temp_df['SellQty'], 0)
+        df_drop = grouped_temp_df.copy()
+        df_drop.to_excel(os.path.join(
+            test_dir,f'df_drop_{each_server}_{datetime.today().time().strftime("%H%M%S")}.xlsx'),
+            index=False
+        )
+        # =======================================================================================================
         temp_api_df = df_api.copy()
         temp_api_df['BuyValue'] = temp_api_df['BuyQty'] * temp_api_df['BuyPrice']
         temp_api_df['SellValue'] = temp_api_df['SellQty'] * temp_api_df['SellPrice']
-        grouped_temp_df = temp_api_df.groupby(by=['Symbol', 'Expiry', 'StrikePrice', 'InstType'], as_index=False).agg(
+        grouped_temp_df = temp_api_df.groupby(
+            by=['Symbol', 'Expiry', 'StrikePrice', 'InstType'], as_index=False).agg(
             {'BuyQty':'sum','SellQty':'sum','NetQty':'sum','BuyValue':'sum','SellValue':'sum'}
         )
-        grouped_temp_df['BuyPrice'] = grouped_temp_df.apply(lambda x: x['BuyValue']/x['BuyQty'] if x['BuyQty'] > 0
-        else 0, axis=1)
+        grouped_temp_df['BuyPrice'] = grouped_temp_df.apply(
+            lambda x: x['BuyValue']/x['BuyQty'] if x['BuyQty'] > 0 else 0, axis=1
+        )
         grouped_temp_df['SellPrice'] = np.where(grouped_temp_df['SellQty'] > 0, grouped_temp_df[
             'SellValue']/grouped_temp_df['SellQty'], 0)
         df_api = grouped_temp_df.copy()
+        df_api.to_excel(os.path.join(
+            test_dir, f'df_api_{each_server}_{datetime.today().time().strftime("%H%M%S")}.xlsx'
+        ), index=False)
+        # =======================================================================================================
         temp_file_downloader_df = df_file_downloader.copy()
         temp_file_downloader_df['BuyValue'] = temp_file_downloader_df['BuyQty'] * temp_file_downloader_df['BuyPrice']
         temp_file_downloader_df['SellValue'] = temp_file_downloader_df['SellQty'] * temp_file_downloader_df['SellPrice']
-        grouped_temp_df = temp_file_downloader_df.groupby(by=['Symbol', 'Expiry', 'StrikePrice', 'InstType'], as_index=False).agg(
+        grouped_temp_df = temp_file_downloader_df.groupby(
+            by=['Symbol', 'Expiry', 'StrikePrice', 'InstType'], as_index=False).agg(
             {'BuyQty': 'sum', 'SellQty': 'sum', 'NetQty': 'sum', 'BuyValue': 'sum', 'SellValue': 'sum'}
         )
-        grouped_temp_df['BuyPrice'] = grouped_temp_df.apply(lambda x: x['BuyValue'] / x['BuyQty'] if x['BuyQty'] > 0
-        else 0, axis=1)
+        grouped_temp_df['BuyPrice'] = grouped_temp_df.apply(
+            lambda x: x['BuyValue'] / x['BuyQty'] if x['BuyQty'] > 0 else 0, axis=1
+        )
         grouped_temp_df['SellPrice'] = np.where(grouped_temp_df['SellQty'] > 0, grouped_temp_df[
             'SellValue'] / grouped_temp_df['SellQty'], 0)
         df_file_downloader = grouped_temp_df.copy()
+        df_file_downloader.to_excel(os.path.join(
+            test_dir, f'df_file_downloader_{each_server}_{datetime.today().time().strftime("%H%M%S")}.xlsx'
+        ), index=False)
     for cntr in range(2):
         if cntr == 0:
             i = 0
@@ -207,7 +247,7 @@ for each_server in route_dict['dropcopy']:
                     op_buy_qty = sum(temp_op_df['BuyQty'])
                     drop_buy_qty = sum(temp_drop_df['BuyQty'])
                     op_buy_price = temp_op_df['BuyPrice'].values[0]
-                    drop_buy_price = temp_drop_df['BuyPrice'].tolist()
+                    drop_buy_price = temp_drop_df['BuyPrice'].values[0]
 
                     temp_op_df.loc[:, 'buy_value'] = temp_op_df['BuyQty'] * temp_op_df['BuyPrice']
                     op_buy_value = temp_op_df['buy_value'].sum()
@@ -217,7 +257,7 @@ for each_server in route_dict['dropcopy']:
                     op_sell_qty = sum(temp_op_df['SellQty'])
                     drop_sell_qty = sum(temp_drop_df['SellQty'])
                     op_sell_price = temp_op_df['SellPrice'].values[0]
-                    drop_sell_price = temp_drop_df['SellPrice'].tolist()
+                    drop_sell_price = temp_drop_df['SellPrice'].values[0]
 
                     temp_op_df.loc[:, 'sell_value'] = temp_op_df['SellQty'] * temp_op_df['SellPrice']
                     op_sell_value = temp_op_df['sell_value'].sum()
@@ -238,13 +278,13 @@ for each_server in route_dict['dropcopy']:
                     if abs(op_sell_price - drop_sell_price) >= 1:
                         i += 1
                         print(
-                            f'{i}. Sell Price Mismatch: {symbol}, {expiry}, {opttype}, {each_strike}\nAPI sell price is not matching with the {for_print} sell price\n{for_print}_sell_price:{drop_sell_price[0]}, api_sell_price:{op_sell_price}, difference:{abs(drop_sell_price[0] - op_sell_price)}\n')
+                            f'{i}. Sell Price Mismatch: {symbol}, {expiry}, {opttype}, {each_strike}\nAPI sell price is not matching with the {for_print} sell price\n{for_print}_sell_price:{drop_sell_price}, api_sell_price:{op_sell_price}, difference:{abs(drop_sell_price - op_sell_price)}\n')
                         flag = False
 
                     if abs(op_buy_price - drop_buy_price) >= 1:
                         i += 1
                         print(
-                            f'{i}. Buy Price Mismatch: {symbol}, {expiry}, {opttype}, {each_strike}\nAPI buy price is not matching with the {for_print} buy price\n{for_print}_buy_price:{drop_buy_price[0]}, api_buy_price:{op_buy_price}, difference:{abs(drop_buy_price[0] - op_buy_price)}\n')
+                            f'{i}. Buy Price Mismatch: {symbol}, {expiry}, {opttype}, {each_strike}\nAPI buy price is not matching with the {for_print} buy price\n{for_print}_buy_price:{drop_buy_price}, api_buy_price:{op_buy_price}, difference:{abs(drop_buy_price - op_buy_price)}\n')
                         flag = False
 
                     if op_buy_qty != drop_buy_qty:
@@ -281,3 +321,5 @@ for each_server in route_dict['dropcopy']:
                     each_server = new_server_dict.get(each_server).upper()
                 print(
                     f'For rest of the trades in {each_server}, No mismatch between the {for_print} and API file\n')
+
+p=0
