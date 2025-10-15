@@ -33,26 +33,28 @@ key_list = list(endpoint_filename_server_dict.keys())
 
 backup_main_url = 'http://172.16.47.87:5000/download/'
 team_url = 'http://172.16.47.87:5001/download/'
-for_server = ['backup','main_demo','team','algo2','algo41_pos_dc','algo81_pos_dc','algo82_pos_dc']
+for_server = ['backup','main_demo','team','algo2_pos','algo41_pos_dc','algo81_pos_dc','algo82_pos_dc','algo66_pos_dc']
 route_dict = {
-    'dropcopy':['backup','main','team','algo2','algo41_pos_dc','algo81_pos_dc','algo82_pos_dc'],
+    'dropcopy':['backup','main','team','algo2_pos','algo41_pos_dc','algo81_pos_dc','algo82_pos_dc','algo66_pos_dc'],
     'file_downloader':[{
         'backup':backup_main_url+ 'backup',
         'main':backup_main_url + 'main_dev',
         'team':team_url + 'team',
-        'algo2':backup_main_url + 'algo2_pos',
+        'algo2_pos':backup_main_url + 'algo2_pos',
         'algo41_pos_dc':backup_main_url + 'algo41_pos_dc',
         'algo81_pos_dc':backup_main_url + 'algo81_pos_dc',
-        'algo82_pos_dc':backup_main_url + 'algo82_pos_dc'
+        'algo82_pos_dc':backup_main_url + 'algo82_pos_dc',
+        'algo66_pos_dc':backup_main_url + 'algo66_pos_dc'
     }],
     'api':[{
         'backup':rf"D:\trade_file_analysis\QI_files\API\backup.csv",
         'main':rf"D:\trade_file_analysis\QI_files\API\main_demo.csv",
         'team':rf"D:\trade_file_analysis\QI_files\API\team.csv",
-        'algo2':rf"D:\trade_file_analysis\QI_files\API\algo2_pos.csv",
+        'algo2_pos':rf"D:\trade_file_analysis\QI_files\API\algo2_pos.csv",
         'algo41_pos_dc':rf"D:\trade_file_analysis\QI_files\API\algo41_pos_dc.csv",
         'algo81_pos_dc':rf"D:\trade_file_analysis\QI_files\API\algo81_pos_dc.csv",
-        'algo82_pos_dc':rf"D:\trade_file_analysis\QI_files\API\algo82_pos_dc.csv"
+        'algo82_pos_dc':rf"D:\trade_file_analysis\QI_files\API\algo82_pos_dc.csv",
+        'algo66_pos_dc':rf"D:\trade_file_analysis\QI_files\API\algo66_pos_dc.csv"
     }]
 }
 
@@ -70,13 +72,19 @@ def convert_to_timestamp(date_input):
     return pd.NaT
 
 new_server_dict = {
-    'algo2': 'Colo 68 : BSE',
+    'algo2_pos': 'Colo 68 : BSE',
     'algo41_pos_dc': 'Colo 41 : NSE',
     'algo81_pos_dc': 'Colo 81 : BSE',
-    'algo82_pos_dc': 'Colo 82 : NSE'
+    'algo82_pos_dc': 'Colo 82 : NSE',
+    'algo66_pos_dc': 'Colo 66 : NSE'
 }
 
+col_keep = ['Symbol', 'Expiry', 'StrikePrice', 'InstType', 'BuyQty', 'BuyPrice', 'SellQty', 'SellPrice',
+                    'NetQty']
+
 for each_server in route_dict['dropcopy']:
+    if each_server == 'algo82_pos_dc':
+        continue
     if each_server in new_server_dict.keys():
         print(f"\nServer: {new_server_dict.get(each_server).upper()}")
     else:
@@ -91,11 +99,12 @@ for each_server in route_dict['dropcopy']:
     for each_file in drop_matched_files:
         temp_df = pd.read_excel(os.path.join(their_file_path, each_file), index_col=False)
         df_drop = pd.concat([df_drop, temp_df])
-        df_drop = df_drop.iloc[:, 1:]
+        df_drop.drop(columns = [col for col in df_drop.columns if col not in col_keep], inplace=True)
         df_drop['Expiry'] = df_drop['Expiry'].apply(convert_to_timestamp)  # sample=2025February27th
         df_drop['Expiry'] = pd.to_datetime(df_drop['Expiry'], dayfirst=True).dt.date
 
     df_api = pd.read_csv(rf"{route_dict['api'][0][each_server]}", index_col=False)
+    df_api.drop(columns=[col for col in df_api.columns if col not in col_keep], inplace=True)
     df_api['Expiry'] = df_api['Expiry'].apply(convert_to_timestamp)  # sample=06-03-2025
     df_api['Expiry'] = pd.to_datetime(df_api['Expiry'], dayfirst=True).dt.date
 
@@ -109,6 +118,7 @@ for each_server in route_dict['dropcopy']:
                 print(f'No trade found for {each_server}\n')
             continue
     df_file_downloader = pd.read_csv(StringIO(resp.text))
+    df_file_downloader.drop(columns=[col for col in df_file_downloader.columns if col not in col_keep], inplace=True)
     # df_file_downloader = pd.read_csv(rf"{route_dict['file_downloader'][0][each_server]}", index_col=False)
     df_file_downloader.Expiry = df_file_downloader.Expiry.apply(convert_to_timestamp)
     df_file_downloader['Expiry'] = pd.to_datetime(df_file_downloader['Expiry'], dayfirst=True).dt.date
@@ -144,7 +154,7 @@ for each_server in route_dict['dropcopy']:
             print(f'File Downloader for {each_server} is empty while data is there in dropcopy and API, '
               f'hence skipping check.')
         continue
-    if each_server in ['algo2','algo41_pos_dc','algo81_pos_dc','algo82_pos_dc']:
+    if each_server in ['algo2_pos','algo41_pos_dc','algo81_pos_dc','algo82_pos_dc','algo66_pos_dc']:
         temp_drop_df = df_drop.copy()
         temp_drop_df['BuyValue'] = temp_drop_df['BuyQty'] * temp_drop_df['BuyPrice']
         temp_drop_df['SellValue'] = temp_drop_df['SellQty'] * temp_drop_df['SellPrice']

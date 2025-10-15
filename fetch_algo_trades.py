@@ -289,6 +289,46 @@ def get_algo82_trades():
     else:
         return pd.DataFrame()
 
+
+def get_algo66_trades():
+    server_ip = "192.168.50.66"
+    adminusername = "user3_rms"
+    adminpassword = "user3_rms"
+    userid = 201
+    proxies = {"http": None, "https": None}
+    
+    url = f"http://{server_ip}:8010/v1/loginrms"
+    payload = json.dumps({
+        "username": adminusername,
+        "password": adminpassword
+    })
+    headers = {
+        'accept': 'application/json',
+        'Content-Type': 'application/json'
+    }
+    
+    response = requests.request("POST", url, headers=headers, data=payload, proxies=proxies)
+    response_msg = response.json()
+    authtoken = response_msg.get("token")
+    url = f"http://{server_ip}:8010/v1/dcNetposition?user_id={userid}"
+    payload = {}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                      'AppleWebKit/537.36 (KHTML, like Gecko) '
+                      'Chrome/137.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'auth-token': authtoken
+    }
+    response = requests.request("GET", url, headers=headers, data=payload, proxies=proxies)
+    
+    if response.status_code == 200:
+        response = response.json()
+        data = response['data']
+        df = pd.DataFrame(data)
+        return df
+    else:
+        return pd.DataFrame()
+
 if __name__ == "__main__":
     algo2_df = get_algo2_trades()
     if not algo2_df.empty:
@@ -362,4 +402,25 @@ if __name__ == "__main__":
         print('Algo82 trades fetched.')
     else:
         print('No Algo82 trades.')
+    algo66_df = get_algo66_trades()
+    if not algo66_df.empty:
+        col_keep = ['Symbol', 'Expiry', 'StrikePrice', 'InstType', 'BuyQty', 'BuyPrice', 'SellQty', 'SellPrice',
+                    'NetQty']
+        algo66_df.drop(columns=[col for col in algo66_df if col not in col_keep], inplace=True)
+        algo66_df = algo66_df.astype(format_dict)
+        # algo66_df['Expiry'] = algo66_df['Expiry'].apply(convert_to_timestamp)
+        algo66_df.to_excel(os.path.join(their_file_path, rf'dropcopy_algo66_pos_dc_positions_'
+                                                         rf'{datetime.today().date().strftime("%Y%m%d")}_165710.xlsx'),
+                           index=False)
+        algo66_net_pos_df = get_file_downloader_trade(for_server='algo66_pos_dc',
+                                                      columns_present=algo66_df.columns.tolist())
+        algo66_net_pos_df.drop(columns=[col for col in algo66_net_pos_df if col not in col_keep], inplace=True)
+        algo66_net_pos_df = algo66_net_pos_df.astype(format_dict)
+        # algo66_net_pos_df['Expiry'] = algo66_net_pos_df['Expiry'].apply(convert_to_timestamp)
+        algo66_net_pos_df.to_csv(os.path.join(our_file_path, rf'net_positions_algo66_pos_dc_'
+                                                             rf'{datetime.today().date().strftime("%Y%m%d")}.csv'),
+                                 index=False)
+        print('Algo66 trades fetched.')
+    else:
+        print('No Algo66 trades.')
     p=0

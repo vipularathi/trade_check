@@ -48,7 +48,7 @@ def convert_to_timestamp(date_input):
                 continue
     return pd.NaT
 col_keep = ['Symbol', 'Expiry', 'StrikePrice', 'InstType', 'BuyQty', 'BuyPrice', 'SellQty', 'SellPrice','NetQty']
-server_list = ['main', 'backup', 'team', 'algo2','algo41_pos_dc', 'algo81_pos_dc', 'algo82_pos_dc']
+server_list = ['main', 'backup', 'team', 'algo2','algo41_pos_dc', 'algo81_pos_dc', 'algo82_pos_dc','algo66_pos_dc']
 new_server_dict = {
     'main' : 'MAIN',
     'backup' : 'BACKUP',
@@ -56,7 +56,8 @@ new_server_dict = {
     'algo2': 'Colo 68 : BSE',
     'algo41_pos_dc': 'Colo 41 : NSE',
     'algo81_pos_dc': 'Colo 81 : BSE',
-    'algo82_pos_dc': 'Colo 82 : NSE'
+    'algo82_pos_dc': 'Colo 82 : NSE',
+    'algo66_pos_dc': 'Colo 66 : NSE'
 }
 print('\n')
 for each_server in server_list:
@@ -171,7 +172,7 @@ for each_server in server_list:
         df_our['Expiry'] = df_our['Expiry'].apply(convert_to_timestamp)  # sample=2025February27th
         df_our['Expiry'] = pd.to_datetime(df_our['Expiry'], dayfirst=True).dt.date
     # =======================================================================================================
-    if each_server in ['algo2','algo41_pos_dc','algo81_pos_dc','algo82_pos_dc']:
+    if each_server in ['algo2','algo41_pos_dc','algo81_pos_dc','algo82_pos_dc','algo66_pos_dc']:
         temp_api_df = df_our.copy()
         temp_api_df['BuyValue'] = temp_api_df['BuyQty'] * temp_api_df['BuyPrice']
         temp_api_df['SellValue'] = temp_api_df['SellQty'] * temp_api_df['SellPrice']
@@ -222,10 +223,10 @@ for each_server in server_list:
         print(f'No trade found for Server: {new_server_dict[each_server].upper()}\n')
         continue
     elif len(df_our) == 0 and len(df_drop):
-        print(f'Net position file for {each_server} is empty hence skipping check.\n')
+        print(f'Either there\'s No Net position file OR there\'s No Data in the file\nfor {each_server} hence skipping check.\n')
         continue
     elif len(df_drop) == 0 and len(df_our):
-        print(f'Dropcopy file for {each_server} is empty hence skipping check.\n')
+        print(f'Either there\'s No Dropcopy file OR there\'s No Data in the file\nfor {each_server} hence skipping check.\n')
         continue
     elif len(df_our) <= len(df_drop):
         filtered_df = df_drop.copy()
